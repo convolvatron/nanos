@@ -75,6 +75,7 @@ SRCS-stage3.img= \
 	$(SRCDIR)/x86_64/service.c \
 	$(SRCDIR)/x86_64/symtab.c \
 	$(SRCDIR)/x86_64/synth.c \
+	$(SRCDIR)/x86_64/fclosure.c \
 	$(SRCS-lwip)
 SRCS-lwip= \
 	$(LWIPDIR)/src/core/def.c \

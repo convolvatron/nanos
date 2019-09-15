@@ -1,14 +1,19 @@
 #pragma once
 typedef u8 reg;
 
-void mov_64_imm(buffer b, reg r, u64 imm);
-void mov_32_imm(buffer b, reg r, u32 imm);
+void move_64_imm(buffer b, reg r, u64 imm);
+void move_32_imm(buffer b, reg r, u32 imm);
+void move_register(buffer b, reg from, reg to);
 void jump_indirect(buffer b, reg r);
 void indirect_displacement(buffer b, reg dest, reg source, u32 d);
 void indirect_scale(buffer b, reg dest, u32 scale, reg index, reg base);
 void debug_trap(buffer b);
 void indirect(buffer b, reg dest, reg source);
 void jump_indirect(buffer b, reg r);
+void push_register(buffer b, reg to);
+void add_register_u8_immediate(buffer b, reg sdest, u8 v);
+void call_register(buffer b, reg r);
+void returnop(buffer b);
 
 // definitions in tuple space
 //           is callee save        argo 

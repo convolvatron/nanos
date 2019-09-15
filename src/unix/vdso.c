@@ -23,15 +23,15 @@ void init_vdso(heap physical_pages, heap pages)
     map(VSYSCALL_BASE, allocate_u64(physical_pages, PAGESIZE), PAGESIZE, PAGE_USER, pages);
     buffer b = alloca_wrap_buffer(pointer_from_u64(VSYSCALL_BASE), PAGESIZE);
     b->end = VSYSCALL_OFFSET_VGETTIMEOFDAY;
-    mov_32_imm(b, 0, u64_from_pointer(vsyscall_gettimeofday));
+    move_32_imm(b, 0, u64_from_pointer(vsyscall_gettimeofday));
     jump_indirect(b, 0);
 
     b->end = VSYSCALL_OFFSET_VTIME;
-    mov_32_imm(b, 0, u64_from_pointer(vsyscall_time));
+    move_32_imm(b, 0, u64_from_pointer(vsyscall_time));
     jump_indirect(b, 0);
 
     b->end = VSYSCALL_OFFSET_VGETCPU;
-    mov_32_imm(b, 0, u64_from_pointer(vsyscall_getcpu));
+    move_32_imm(b, 0, u64_from_pointer(vsyscall_getcpu));
     jump_indirect(b, 0);
 
     /* allow user execution for vsyscall pages */
