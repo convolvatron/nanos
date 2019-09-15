@@ -172,9 +172,14 @@ typedef struct {
     for (int __i = 0; __i< __e->e_phnum; __i++)\
         for (Elf64_Phdr *__p = (void *)__e + __e->e_phoff + (__i * __e->e_phentsize); __p ; __p = 0) \
 
+// a super sad hack to allow us to write to the bss in elf.c as
+// phy instead of virt
+#define vpzero(__v, __p, __y) zero(pointer_from_u64(__v), __y)
+
 typedef closure_type(elf_map_handler, void, u64 /* vaddr */, u64 /* paddr, -1ull if bss */, u64 /* size */, u64 /* flags */);
+typedef closure_type(elf_zero_handler, void, void * /* vaddr */,  u64 /* paddr*/, u64 /* size */);
 typedef closure_type(elf_sym_handler, void, char *, u64, u64, u8);
 void elf_symbols(buffer elf, elf_sym_handler each);
-void *load_elf(buffer elf, u64 load_offset, elf_map_handler mapper);
+void *load_elf(buffer elf, u64 load_offset, elf_map_handler mapper, elf_zero_handler z);
 
 #endif /* !_SYS_ELF64_H_ */

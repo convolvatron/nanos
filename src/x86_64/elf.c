@@ -63,7 +63,7 @@ void elf_symbols(buffer elf, elf_sym_handler each)
     msg_err("failed to parse elf file, len %d; check file image consistency\n", buffer_length(elf));
 }
 
-void *load_elf(buffer elf, u64 load_offset, elf_map_handler mapper)
+void *load_elf(buffer elf, u64 load_offset, elf_map_handler mapper, elf_zero_handler z)
 {
     void * elf_end = buffer_ref(elf, buffer_length(elf));
     Elf64_Ehdr *e = buffer_ref(elf, 0);
@@ -97,9 +97,7 @@ void *load_elf(buffer elf, u64 load_offset, elf_map_handler mapper)
 
             u64 bss_start = p->p_vaddr + load_offset + p->p_filesz;
             u64 initial_len = MIN(bss_size, pad(bss_start, PAGESIZE) - bss_start);
-
-            /* vpzero does the right thing whether stage2 or 3... */
-            vpzero(pointer_from_u64(bss_start), phy + p->p_filesz, initial_len);
+            apply(z, pointer_from_u64(bss_start), phy + p->p_filesz, initial_len);
 
             if (bss_size > initial_len) {
                 u64 pstart = bss_start + initial_len;

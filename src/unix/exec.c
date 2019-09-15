@@ -152,11 +152,17 @@ static void exec_elf_map(process p, kernel_heaps kh, u64 vaddr, u64 paddr, u64 s
     }
 }
 
+static CLOSURE_0_3(vzero, void, void *, u64, u64);
+static void vzero(void *v, u64 p, u64 s)
+{
+    zero(pointer_from_u64(v), s);
+}
+
 CLOSURE_2_1(load_interp_complete, void, thread, kernel_heaps, buffer);
 void load_interp_complete(thread t, kernel_heaps kh, buffer b)
 {
     u64 where = allocate_u64(heap_virtual_huge(kh), HUGE_PAGESIZE);
-    void * start = load_elf(b, where, stack_closure(exec_elf_map, t->p, kh));
+    void * start = load_elf(b, where, stack_closure(exec_elf_map, t->p, kh), stack_closure(vzero));
     start_process(t, start);
 }
 
@@ -217,7 +223,7 @@ process exec_elf(buffer ex, process kp)
 
     exec_debug("offset 0x%lx, range after adjustment: %R, span 0x%lx\n",
                load_offset, load_range, range_span(load_range));
-    void * entry = load_elf(ex, load_offset, stack_closure(exec_elf_map, proc, kh));
+    void * entry = load_elf(ex, load_offset, stack_closure(exec_elf_map, proc, kh), stack_closure(vzero));
 
     u64 brk_offset = aslr ? get_aslr_offset(PROCESS_HEAP_ASLR_RANGE) : 0;
     u64 brk = pad(load_range.end, PAGESIZE) + brk_offset;

@@ -167,6 +167,16 @@ static void kernel_elf_map(u64 vaddr, u64 paddr, u64 size, u64 flags)
     map(vaddr, paddr, size, flags, heap_pages(&kh));
 }
 
+// a super sad hack to allow us to write to the bss in elf.c as
+// phy instead of virt
+#define vpzero(__v, __p, __y) zero(pointer_from_u64(__v), __y)
+
+static CLOSURE_0_3(pzero, void, void *, u64, u64);
+static void pzero(void * v, u64 p, u64 s)
+{
+    zero(pointer_from_u64(p), s);
+}
+
 static CLOSURE_0_1(kernel_read_complete, void, buffer);
 static void __attribute__((noinline)) kernel_read_complete(buffer kb)
 {
@@ -175,7 +185,7 @@ static void __attribute__((noinline)) kernel_read_complete(buffer kb)
     /* save kernel elf image for use in stage3 (for symbol data) */
     create_region(u64_from_pointer(buffer_ref(kb, 0)), pad(buffer_length(kb), PAGESIZE), REGION_KERNIMAGE);
 
-    void *k = load_elf(kb, 0, stack_closure(kernel_elf_map));
+    void *k = load_elf(kb, 0, stack_closure(kernel_elf_map), stack_closure(pzero));
     if (!k) {
         halt("kernel elf parse failed\n");
     }
