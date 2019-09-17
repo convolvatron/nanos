@@ -358,12 +358,11 @@ static void gdbserver_input(gdb g, buffer b)
     }
 }
 
-buffer_handler init_gdb(heap h,
-                        process p,
-                        buffer_handler outh)
+static CLOSURE_2_1(gdb_accept, buffer_handler, heap, process, buffer_handler);
+static buffer_handler gdb_accept(heap h, process p, buffer_handler out)
 {
     gdb g = allocate(h, sizeof(struct gdb));
-    g->output_handler = outh;
+    g->output_handler = out;
     // why do I need three here?
     g->output = allocate_buffer(h, 256); 
     g->send_buffer = allocate_buffer(h, 256); 
@@ -373,5 +372,10 @@ buffer_handler init_gdb(heap h,
     g->t = vector_get(p->threads, 0);
     g->t->frame[FRAME_FAULT_HANDLER] = u64_from_pointer(closure(h, gdb_handle_exception, g));
     reset_parser(g);
-    return closure(h, gdbserver_input, g);
+    return closure(h, gdbserver_input, g);    
+}
+
+void init_gdb(heap h, process p, u16 port)
+{
+    listen_port(h, port, closure(h, gdb_accept, h, p));    
 }

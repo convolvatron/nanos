@@ -1,4 +1,3 @@
-#pragma once
 #include <unix_internal.h>
 #include <lwip.h>
 
@@ -50,8 +49,4 @@ boolean mem2hex (string b, void *mem, int count);
 boolean hex2mem (buffer b, void *mem, int count);
 void putpacket(gdb, string b);
 boolean handle_query(gdb g, buffer b, string out, handler h);
-
-buffer_handler init_gdb(heap h,
-                        process p,
-                        buffer_handler outh);
 

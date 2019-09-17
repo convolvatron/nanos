@@ -70,7 +70,7 @@ context default_fault_handler(thread t, context frame)
 
     if (table_find (current->p->process_root, sym(fault))) {
         console("starting gdb\n");
-        init_tcp_gdb(heap_general(get_kernel_heaps()), current->p, 9090);
+        init_gdb(heap_general(get_kernel_heaps()), current->p, 9090);
         thread_sleep_uninterruptible();
     } else {
         halt("halt\n");

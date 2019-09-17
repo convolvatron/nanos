@@ -129,7 +129,7 @@ extern void init_extra_prints();
 CLOSURE_0_1(fail, void, status);
 void fail(status s)
 {
-    halt("filesystem_read_entire failed: %v\n", s);
+    halt("stage2e filesystem_read_entire failed: %v\n", s);
 }
 
 static void setup_page_tables()

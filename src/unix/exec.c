@@ -115,8 +115,7 @@ void start_process(thread t, void *start)
     t->frame[FRAME_RIP] = u64_from_pointer(start);
     
     if (table_find(t->p->process_root, sym(gdb))) {
-        console ("gdb!\n");
-        init_tcp_gdb(heap_general(get_kernel_heaps()), t->p, 9090);
+        init_gdb(t->p->uh->kh.general, t->p, 9090); 
     } else {
         enqueue(runqueue, t->run);
     }

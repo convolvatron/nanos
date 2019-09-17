@@ -10,9 +10,10 @@ SRCS-stage3.img= \
 	$(SRCDIR)/drivers/storage.c \
 	$(SRCDIR)/drivers/vga.c \
 	$(SRCDIR)/gdb/gdbstub.c \
-	$(SRCDIR)/gdb/gdbtcp.c \
 	$(SRCDIR)/gdb/gdbutil.c \
+	$(SRCDIR)/http/http.c \
 	$(SRCDIR)/net/net.c \
+	$(SRCDIR)/net/direct.c \
 	$(SRCDIR)/net/netsyscall.c \
 	$(SRCDIR)/runtime/bitmap.c \
 	$(SRCDIR)/runtime/buffer.c \
@@ -103,6 +104,7 @@ CFLAGS+=	$(KERNCFLAGS) -DSTAGE3
 CFLAGS+= \
 	-I$(SRCDIR) \
 	-I$(SRCDIR)/gdb \
+	-I$(SRCDIR)/http \
 	-I$(SRCDIR)/net \
 	-I$(SRCDIR)/runtime \
 	-I$(SRCDIR)/tfs \
