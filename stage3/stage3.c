@@ -66,8 +66,8 @@ void startup(kernel_heaps kh,
     value p = table_find(root, sym(program));
     if (p) {
         tuple pro = resolve_path(root, split(general, p, '/'));
-        init_network_iface(root);
         filesystem_read_entire(fs, pro, heap_backed(kh), pg, closure(general, read_program_fail));
     }
+    init_network_iface(root);
 }
 

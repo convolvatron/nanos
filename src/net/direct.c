@@ -44,7 +44,8 @@ static err_t direct_accept(void *z, struct tcp_pcb *pcb, err_t b)
 void listen_port(heap h, u16 port, connection_handler c)
 {
     direct g = (direct) allocate(h, sizeof(struct direct));
-    g->p = tcp_new_ip_type(IPADDR_TYPE_ANY); 
+    g->p = tcp_new_ip_type(IPADDR_TYPE_ANY);
+    g->h = h;
     g->new = c;
     tcp_bind(g->p, IP_ANY_TYPE, port);
     g->p = tcp_listen(g->p);
