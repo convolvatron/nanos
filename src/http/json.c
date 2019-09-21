@@ -1,10 +1,11 @@
 #include <runtime.h>
 #include <http/http.h>
-#include <math.h>
 
 typedef struct json_parser *json_parser;
 typedef void *(*parser)(json_parser, character);
 typedef parser (*completion)(json_parser);
+double pow(double x, double y); //?
+
 
 #define numeric(__p, __c, __start, __end, __offset, __base)\
     (((__c <= __end) && (__c >= __start))?                                \
@@ -14,7 +15,7 @@ typedef parser (*completion)(json_parser);
 void escape_json(buffer out, string current)
 {
     buffer_write_byte(out , '"');
-    string_foreach(current, ch) {
+    foreach_character(_, ch, current) {
         if(ch == '\\' || ch == '"') {
             bprintf(out , "\\");
         } else if(ch == '\n') {
@@ -31,69 +32,58 @@ void escape_json(buffer out, string current)
 
 void print_value_json(buffer out, value v)
 {
-    switch(type_of(v)) {
-    case uuid_space:
-        bprintf(out , "{\"type\" : \"uuid\", \"value\" : \"%X\"}", alloca_wrap_buffer(v, UUID_LENGTH));
+    switch(tagof(v)) {
+    case tag_tuple:
+        //        bprintf(out , "{\"type\" : \"uuid\", \"value\" : \"%X\"}", alloca_wrap_buffer(v, UUID_LENGTH));
         break;
-    case float_space:
-        bprintf(out, "%v", v);
-        break;
-    case estring_space:
-        {
-            estring si = v;
-            buffer current = alloca_wrap_buffer(si->body, si->length);
-            escape_json(out, current);
-        }
-        break;
-    case register_space:
-        if (v == etrue) {
-            bprintf(out, "true");
-            break;
-        }
-        if (v == efalse) {
-            bprintf(out, "false");
-            break;
-        }
-
-        if (((u64)v & ~0xff) == register_base) {
-            bprintf(out, "\"r%d\"", (unsigned long)v - register_base);
-            break;
-        }
+        //    case float_space:
+        //        bprintf(out, "%v", v);
+        //        break;
+        // what is tag buffer?
+        //    case tag_buffer:
+        //        {
+        //            estring si = v;
+        //            buffer current = alloca_wrap_buffer(si->body, si->length);
+        //            escape_json(out, current);
+        //        }
         break;
     default:
-        prf ("wth!@ %v\n", v);
+        rprintf ("wth!@ %v\n", v);
     }
 }
 
 void print_value_vector_json(buffer out, vector vec) {
   bprintf(out, "[");
   boolean multi = false;
-  vector_foreach(vec, current) {
+  value i;
+  vector_foreach(i, vec) {
       bprintf(out, multi ? ", " : "");
-      print_value_json(out, current);
+      print_value_json(out, i);
       multi = true;
   }
   bprintf(out, "]");
 }
 
-static void json_encode_internal(buffer dest, edb b, uuid n);
+typedef void *uuid;
 
-static CLOSURE_3_4(json_encode_cont, void, buffer, edb, boolean *, value, value, value, uuid);
-static void json_encode_cont(buffer dest, edb b, boolean * start, value e, value a, value v, uuid bku) {
+static void json_encode_internal(buffer dest, tuple b, uuid n);
+
+static CLOSURE_3_4(json_encode_cont, void, buffer, tuple, boolean *, value, value, value, uuid);
+static void json_encode_cont(buffer dest, tuple b, boolean * start, value e, value a, value v, uuid bku) {
     bprintf(dest, "%s%v:", (*start ? "" : ","), a);
     *start = false;
     json_encode_internal(dest, b, v);
 }
 
-static void json_encode_internal(buffer dest, edb b, uuid n)
+static void json_encode_internal(buffer dest, tuple b, uuid n)
 {
     boolean start = true;
-    if (type_of(n) == uuid_space) {
-        if (lookupv((edb)b, n, sym(tag)) == sym(array)){
+    if (tagof(n) == uuid_space) {
+        if (get((tuple)b, n, sym(tag)) == sym(array)){
             bprintf(dest, "[");
             value t;
             // grr, box float small int
-            for (int i = 1; (t = lookupv((edb)b, n, box_float(i))); i++){
+            for (int i = 1; (t = get((tuple)b, n, box_float(i))); i++){
                 bprintf(dest, "%s", start?"":",");
                 json_encode_internal(dest, b, t);
                 start = false;
@@ -110,7 +100,7 @@ static void json_encode_internal(buffer dest, edb b, uuid n)
     } else print_value_json(dest, n);
 }
 
-buffer json_encode(heap h, edb b, uuid n)
+buffer json_encode(heap h, tuple b, uuid n)
 {
     buffer dest = allocate_buffer(h, 100);
     json_encode_internal(dest, b, n);
@@ -121,7 +111,7 @@ struct json_parser {
     heap h;
     value v;
     object_handler out;
-    edb b;
+    tuple b;
 
     parser p;
     buffer string_result;
@@ -165,7 +155,7 @@ static char escape_map[] = {
 static char real_escape_map_storage[0x80];
 static char *real_escape_map = 0;
 
-#define complete(__p)  ((completion)pop(__p->completions))(__p)
+#define complete(__p)  ((completion)vector_pop(__p->completions))(__p)
 #define error(__text) return ((void *)0);
 
 static void *parse_string(json_parser p, character c);
@@ -176,7 +166,7 @@ static void *parse_decimal_number(json_parser p, character c)
     if (numeric(p, c, '0', '9', 0, 10)) return parse_decimal_number;
     return complete(p)(p, c);
 }
-
+#if 0
 //
 // float
 //
@@ -229,6 +219,7 @@ static void *start_parse_float(json_parser p, character c)
     }
     return check_exp(p, c);
 }
+#endif
 
 static void *parse_hex_number(json_parser p,  character c)
 {
@@ -268,7 +259,7 @@ static void *parse_string(json_parser p, character c)
 {
     if (c == '\\') return parse_backslash;
     if (c == '"')  {
-        p->v = intern_buffer(p->string_result);
+        p->v = intern(p->string_result);
         return complete(p);
     }
     string_insert_rune(p->string_result, c);
@@ -280,8 +271,8 @@ static void *parse_string(json_parser p, character c)
 //
 static void *complete_array(json_parser p)
 {
-    p->v = pop(p->ids);
-    pop(p->indices);
+    p->v = vector_pop(p->ids);
+    vector_pop(p->indices);
     return complete(p);
 }
 
@@ -290,7 +281,7 @@ static void *next_array(json_parser p, character c)
 {
     switch(c) {
     case ',':
-        push(p->completions, value_complete_array);
+        vector_push(p->completions, value_complete_array);
         return parse_value;
     case ']':
         return complete_array(p);
@@ -302,9 +293,9 @@ static void *next_array(json_parser p, character c)
 
 static parser value_complete_array(json_parser p)
 {
-    u64 count = (u64)pop(p->indices);
+    u64 count = (u64)vector_pop(p->indices);
     // block?
-    edb_insert(p->b, peek(p->ids), box_float(count), p->v, 0);
+    tuple_insert(p->b, peek(p->ids), box_float(count), p->v, 0);
     count++;
     push(p->indices, (void *)count);
     return next_array;
@@ -321,7 +312,7 @@ static void *first_array_element(json_parser p, character c)
 static void *start_array(json_parser p)
 {
     push(p->ids, generate_uuid());
-    edb_insert(p->b, peek(p->ids), sym(tag), sym(array), 0);
+    tuple_insert(p->b, peek(p->ids), sym(tag), sym(array), 0);
     push(p->indices, (void *)1);
     return first_array_element;
 }
@@ -333,7 +324,7 @@ static void *next_object(json_parser p, character c);
 
 static void *value_complete_object(json_parser p)
 {
-    edb_insert(p->b, peek(p->ids), pop(p->tags), p->v, 0);
+    tuple_insert(p->b, peek(p->ids), pop(p->tags), p->v, 0);
     return next_object;
 }
 
@@ -349,7 +340,7 @@ static void *check_sep(json_parser p, character c)
 
 static void *complete_tag(json_parser p)
 {
-    push(p->tags, intern_buffer(p->string_result));
+    push(p->tags, intern(p->string_result));
     return check_sep;
 }
 
@@ -452,10 +443,10 @@ static void *json_top(json_parser p, character c)
 {
     switch(c) {
     case '{':
-        p->b = create_edb(p->h, 0);
+        p->b = create_tuple(p->h, 0);
         return start_object(p);
     case '[':
-        p->b = create_edb(p->h, 0);
+        p->b = create_tuple(p->h, 0);
         return start_array(p);
     default:
         if (whitespace(c)) return json_top;

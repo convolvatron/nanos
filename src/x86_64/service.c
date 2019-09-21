@@ -8,7 +8,7 @@
 #include <virtio/virtio.h>
 #include <drivers/storage.h>
 #include <drivers/console.h>
-#include <unix_internal.h>
+#include <unix.h>
 
 extern void init_net(kernel_heaps kh);
 extern void start_interrupts(kernel_heaps kh);
@@ -91,13 +91,13 @@ void runloop()
             apply(t);
             disable_interrupts();
         }
-        if (current) {
-            proc_pause(current->p);
+        if (current_process()) {
+            proc_pause(current_process());
         }
         timer_update();
         kernel_sleep();
-        if (current) {
-            proc_resume(current->p);
+        if (current_process()) {
+            proc_resume(current_process());
         }
     }
 }

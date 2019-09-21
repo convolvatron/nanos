@@ -1,11 +1,7 @@
-#include <runtime.h>
-#include <x86_64.h>
+#include "virtio_internal.h"
 #include <drivers/storage.h>
 #include <virtio/scsi.h>
-#include <x86_64.h>
 #include <io.h>
-
-#include "virtio_internal.h"
 
 #ifdef VIRTIO_SCSI_DEBUG
 # define virtio_scsi_debug rprintf

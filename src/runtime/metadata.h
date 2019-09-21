@@ -1,6 +1,4 @@
-#pragma once
 
-#include <list.h>
 #include <stringtok.h>
 
 static inline vector vector_from_tuple(heap h, tuple n)
@@ -34,7 +32,7 @@ static inline tuple tuple_from_vector(vector v)
 static inline tuple resolve_path(tuple n, vector v)
 {
     buffer i;
-    vector_foreach(v, i) {
+    vector_foreach(i, v) {
         /* null entries ("//") are skipped in path */
         if (buffer_length(i) == 0)
             continue;

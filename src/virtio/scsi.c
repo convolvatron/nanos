@@ -1,3 +1,4 @@
+#include <runtime.h>
 #include <virtio/scsi.h>
 
 int scsi_data_len(u8 cmd)

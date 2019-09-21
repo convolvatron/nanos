@@ -1,3 +1,8 @@
+#include <runtime.h>
+
+#include <x86_64.h>
+#include <page.h>
+
 #include "virtio_pci.h"
 
 typedef struct virtqueue *virtqueue;

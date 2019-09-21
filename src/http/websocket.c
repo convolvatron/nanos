@@ -1,7 +1,9 @@
 #include <runtime.h>
 #include <http/http.h>
 
-extern thunk ignore;
+#define outline(__b, __format, ...)\
+    bbprintf(__b, staticbuffer(__format), ## __VA_ARGS__);\
+    buffer_append(__b, "\r\n", 2);
 
 typedef struct websocket {
     heap h;
@@ -49,12 +51,12 @@ static void send_keepalive(websocket w, buffer b)
     websocket_send(w, 0x9, b, ignore);
 }
 
-CLOSURE_1_2(websocket_output_frame, void, websocket, buffer, thunk);
+/*CLOSURE_1_2(websocket_output_frame, void, websocket, buffer, thunk);
 void websocket_output_frame(websocket w, buffer b, thunk t)
 {
     websocket_send(w, 1, b, t);
 }
-
+*/
 static CLOSURE_1_2(websocket_input_frame, void, websocket, buffer, thunk);
 static void websocket_input_frame(websocket w, buffer b, thunk t)
 {
@@ -155,12 +157,13 @@ websocket new_websocket(heap h)
 }
 
 
-
+/*
 static CLOSURE_1_1(client_connected, void, websocket, buffer_handler) 
 static void client_connected(websocket w, buffer_handler down)
 {
     //    apply(w->down, response_header_parser(w->h, cont(w->h, header_response, w)));
 }
+*/
 
 buffer_handler websocket_client(heap h, buffer_handler rx)
 {
@@ -186,23 +189,24 @@ buffer_handler websocket_send_upgrade(heap h,
     if (!ekey) return 0;
     key = allocate_buffer(h, ekey->length);
     buffer_append(key, ekey->contents, ekey->length);
-    string_concat(key, sstring("258EAFA5-E914-47DA-95CA-C5AB0DC85B11"));
+    buffer k = staticbuffer("258EAFA5-E914-47DA-95CA-C5AB0DC85B11");
+    buffer_append(key, k->contents, k->length);
     buffer sh = allocate_buffer(h, 20);
     sha1(sh, key);
-    string r = base64_encode(h, sh);
+    string encoded_key = base64_encode(h, sh);
     buffer upgrade = allocate_buffer(h, 200);
 
     outline(upgrade, "HTTP/1.1 101 Switching Protocols");
     outline(upgrade, "Upgrade: websocket");
     outline(upgrade, "Connection: Upgrade");
-    outline(upgrade, "Sec-WebSocket-Accept: %b", r);
+    outline(upgrade, "Sec-WebSocket-Accept: %b", encoded_key);
     if (proto)
         outline(upgrade, "Sec-WebSocket-Protocol: %r", proto);
     outline(upgrade, "");
 
-    register_periodic_timer(tcontext()->t, seconds(5), closure(w->h, send_keepalive, w, allocate_buffer(w->h, 0)));
-    w->down = down;
-    apply(w->down->w, upgrade, ignore);
-    apply(w->down->r, w->self);
-    return w->up;
+    register_periodic_timer(seconds(5),
+                            closure(w->h, send_keepalive, w, allocate_buffer(w->h, 0)));
+    
+    apply(down, upgrade, ignore);
+    return closure(h, websocket_input_frame, w);
 }

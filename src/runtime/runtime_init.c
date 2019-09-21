@@ -7,6 +7,8 @@ static inline void ignore_body(){}
 thunk ignore;
 status_handler ignore_status;
 static char *hex_digits="0123456789abcdef";
+static function map_methods_contents[METHOD_COUNT*tag_max];
+function *map_methods;
 
 void print_u64(u64 s)
 {
@@ -85,6 +87,7 @@ heap transient;
 // with it, it gets initialized
 void init_runtime(kernel_heaps kh)
 {
+    map_methods = map_methods_contents;
     // environment specific
     heap h = transient = heap_general(kh);
     register_format('p', format_pointer, 0);

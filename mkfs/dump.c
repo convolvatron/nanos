@@ -34,8 +34,8 @@ static void bread(descriptor d, u64 fs_offset, void *dest, range blocks, status_
     apply(c, STATUS_OK);
 }
 
-CLOSURE_1_1(write_file, void, buffer, buffer);
-void write_file(buffer path, buffer b)
+CLOSURE_1_2(write_file, void, buffer, buffer, thunk);
+void write_file(buffer path, buffer b, thunk done)
 {
     // openat would be nicer really
     buffer tmpbuf = little_stack_buffer(NAME_MAX + 1);

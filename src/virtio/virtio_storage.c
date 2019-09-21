@@ -1,7 +1,6 @@
+#include "virtio_internal.h"
 #include <drivers/storage.h>
 #include <io.h>
-
-#include "virtio_internal.h"
 
 //#define VIRTIO_BLK_DEBUG
 

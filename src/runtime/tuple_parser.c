@@ -1,8 +1,14 @@
 #include <runtime.h>
+
+// should be  (parser, parser, character)
+typedef closure_type(parser, void *, character);
+
+parser parser_feed (parser p, buffer b);
+
 // synthesize the parser
 typedef closure_type(selfparser, parser, parser, character);
 typedef closure_type(completion, parser, void *);
-typedef closure_type(err_internal, parser, buffer);
+typedef closure_type(err_internal, parser, tuple);
 
 typedef table charset;
 
@@ -126,7 +132,7 @@ static parser dispatch_property(heap h, parser pv, err_internal e, character x)
         return pv;
 
     default:
-        return apply(e, aprintf(h, "unknown property discriminator %d", x));
+        return apply(e, timm("error", aprintf(transient, "unknown property discriminator %d", x)));
         break;
     }
 
@@ -224,15 +230,15 @@ static parser kill(parser self, character ig)
 }
 
 
-static CLOSURE_2_1(bridge_err, parser, heap, parse_error, buffer);
-static parser bridge_err(heap h, parse_error error, buffer b)
+static CLOSURE_2_1(bridge_err, parser, heap, status_handler, tuple);
+static parser bridge_err(heap h, status_handler error, tuple t)
 {
-    apply(error, b);
+    apply(error, t);
     return combinate(h, closure(h, kill));
 }
 
-static CLOSURE_3_1(bridge_completion, parser, heap, parse_finish, err_internal, void *);
-static parser bridge_completion(heap h, parse_finish c, err_internal err, void *v)
+static CLOSURE_3_1(bridge_completion, parser, heap, value_handler, err_internal, void *);
+static parser bridge_completion(heap h, value_handler c, err_internal err, void *v)
 {
     apply(c, v);
     // another self case
@@ -240,7 +246,7 @@ static parser bridge_completion(heap h, parse_finish c, err_internal err, void *
     return (void *)closure(h, parse_value, h, bc, err);
 }
 
-parser tuple_parser(heap h, parse_finish c, parse_error err)
+buffer_handler tuple_parser(heap h, value_handler c, status_handler err)
 {
     if (!whitespace) whitespace = charset_from_string(h, " \n\t");
     if (!name_terminal) name_terminal = charset_from_string(h, "()[]");

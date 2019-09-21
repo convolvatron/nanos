@@ -167,8 +167,8 @@ static void kernel_elf_map(u64 vaddr, u64 paddr, u64 size, u64 flags)
     map(vaddr, paddr, size, flags, heap_pages(&kh));
 }
 
-static CLOSURE_0_1(kernel_read_complete, void, buffer);
-static void __attribute__((noinline)) kernel_read_complete(buffer kb)
+static CLOSURE_0_2(kernel_read_complete, void, buffer, thunk);
+static void __attribute__((noinline)) kernel_read_complete(buffer kb, thunk done)
 {
     stage2_debug("%s\n", __func__);
 

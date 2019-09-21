@@ -30,7 +30,7 @@ LN=		ln
 SED=		sed
 STRIP=		strip
 TAR=		tar
-OBJCOPY=	objcopy
+OBJCOPY=	x86_64-elf-objcopy
 OBJDUMP=	objdump
 RM=		rm -f
 TOUCH=		touch
@@ -92,6 +92,9 @@ cmd_ld=		$(LD) $(LDFLAGS) $(LDFLAGS-$(@F)) $(OBJS_BEGIN) $(filter %.o,$^) $(LIBS
 msg_cc=		CC	$@
 cmd_cc=		$(CC) $(DEPFLAGS) $(CFLAGS) $(CFLAGS-$(<F)) -c $< -o $@
 
+msg_binclude=	BINCLUDE	$@
+cmd_binclude=	(cd $(dir $<) ; $(OBJCOPY) -Bi386 -I binary -O elf64-x86-64 $(notdir $<) $@)
+
 msg_nasm=	NASM	$@
 cmd_nasm=	$(NASM) $(AFLAGS) $(AFLAGS-$(<F)) $< -o $@
 
@@ -112,7 +115,7 @@ cmd_vendor=	$(RM) -r $(@D) && $(GIT) clone $(GITFLAGS) $(@D) && $(TOUCH) $@
 
 define build_program
 PROG-$1=	$(OBJDIR)/bin/$1
-OBJS-$1=	$$(foreach s,$$(filter %.c %.s,$$(SRCS-$1)),$$(call objfile,.o,$$s))
+OBJS-$1=	$$(foreach s,$$(filter %.c %.s %.js,$$(SRCS-$1)),$$(call objfile,.o,$$s))
 OBJDIRS-$1=	$$(sort $$(dir $$(OBJS-$1)))
 ifneq ($$(filter $(SRCDIR)/runtime/%.c,$$(SRCS-$1)),)
 GENHEADERS-$1=	$(OBJDIR)/closure_templates.h
@@ -180,6 +183,10 @@ cleandepend:
 # implicit rules
 
 .SUFFIXES:
+
+$(OBJDIR)/%.o: $(ROOTDIR)/%.js
+	@$(MKDIR) $(dir $@)
+	$(call cmd,binclude)
 
 $(OBJDIR)/%.o: $(ROOTDIR)/%.s
 	@$(MKDIR) $(dir $@)

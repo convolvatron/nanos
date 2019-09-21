@@ -63,7 +63,7 @@ void putpacket(gdb g, string b)
     
     bprintf (g->send_buffer, "#");
     print_number(g->send_buffer, (u64)checksum, 16, 2);
-    apply(g->output_handler, g->send_buffer);
+    apply(g->output_handler, g->send_buffer, ignore);
 }
 
 

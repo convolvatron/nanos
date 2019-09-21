@@ -1,7 +1,3 @@
-#pragma once
-
-#include <runtime.h>
-
 #define INITIAL_MAP_SIZE (0xa000)
 
 #define PAGE_NO_EXEC       U64_FROM_BIT(63)

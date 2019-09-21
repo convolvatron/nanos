@@ -286,7 +286,8 @@ static void read_entire_complete(buffer_handler bh, buffer b, status_handler sh,
               s, buffer_ref(b, 0), buffer_length(b));
     if (is_ok(s)) {
         report_sha256(b);
-        apply(bh, b);
+        // this second argument is flow control
+        apply(bh, b, ignore);
     } else {
         deallocate_buffer(b);
         apply(sh, s);

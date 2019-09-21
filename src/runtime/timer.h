@@ -1,4 +1,3 @@
-#pragma once
 typedef u64 timestamp;
 typedef struct timer *timer;
 

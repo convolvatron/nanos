@@ -1,5 +1,3 @@
-#pragma once
-	
 typedef unsigned char u8;
 typedef char s8;
 typedef unsigned short u16;
@@ -39,8 +37,7 @@ typedef u64 bytes;
      })
 
 /* These are defined as functions to avoid multiple evaluation of x. */
-static inline u16
-__bswap16(u16 _x)
+static inline u16 __bswap16(u16 _x)
 {
     return (u16)(_x << 8 | _x >> 8);
 }

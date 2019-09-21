@@ -1,6 +1,12 @@
 #include <unix_internal.h>
-#include <buffer.h>
 #include <gdb.h>
+
+process current_process()
+{
+    if (current) return current->p;
+    return 0;
+}
+
 
 void init_fdesc(heap h, fdesc f, int type)
 {

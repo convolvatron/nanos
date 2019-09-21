@@ -10,8 +10,8 @@ typedef struct direct{
     heap h;
 } *direct;
     
-static CLOSURE_1_1(direct_send, void, struct tcp_pcb *, buffer);
-static void direct_send( struct tcp_pcb *pcb, buffer b)
+static CLOSURE_1_2(direct_send, void, struct tcp_pcb *, buffer, thunk);
+static void direct_send( struct tcp_pcb *pcb, buffer b, thunk t)
 {
     //    u64 len = tcp_sndbuf(g->pcb);
     // flags can force a stack copy or toggle push

@@ -15,6 +15,7 @@ typedef struct http_parser {
     tuple header;
     value_handler each;
     u64 content_length;
+    buffer_handler consumer;
 } *http_parser;
 
 //CLOSURE_1_2(each_header, void, buffer, symbol, value);
@@ -37,7 +38,7 @@ void http_request(heap h, buffer_handler bh, tuple headers)
     buffer url = table_find(headers, sym(url));
     bprintf(b, "GET %b HTTP/1.1\r\n", url);
     http_header(b, headers);
-    apply(bh, b);
+    apply(bh, b, ignore);
 }
 
 // xxx - other http streaming interfaces are less straightforward
@@ -51,8 +52,8 @@ void send_http_response(buffer_handler out,
     table_foreach(t, k, v) each_header(d, k, v);
     each_header(d, sym(Content-Length), aprintf(transient, "%d", c->end));
     bprintf(d, "\r\n");
-    apply(out, d);
-    apply(out, c);
+    apply(out, d, ignore);
+    apply(out, c, ignore);
     
 }
 
@@ -68,8 +69,8 @@ static void reset_parser(http_parser p)
 // we're going to patch the connection together by looking at the
 // leftover bits in buffer...defer until we need to actually
 // switch protocols
-CLOSURE_1_1(http_recv, void, http_parser, buffer);
-void http_recv(http_parser p, buffer b)
+CLOSURE_1_2(http_recv, void, http_parser, buffer, thunk);
+void http_recv(http_parser p, buffer b, thunk done)
 {
     int i;
 

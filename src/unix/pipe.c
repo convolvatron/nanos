@@ -1,5 +1,4 @@
 #include <unix_internal.h>
-#include <buffer.h>
 
 #ifdef PIPE_DEBUG
 #define pipe_debug(x, ...) do {log_printf("PIPE", x, ##__VA_ARGS__);} while(0)

@@ -121,10 +121,10 @@ void finish(heap h, void *v)
     root = v;
 }
 
-CLOSURE_0_1(perr, void, string);
-void perr(string s)
+CLOSURE_0_1(perr, void, tuple);
+void perr(tuple s)
 {
-    rprintf("parse error %b\n", s);
+    rprintf("parse error %v\n", s);
 }
 
 static CLOSURE_2_3(bwrite, void, descriptor, ssize_t, void *, range, status_handler);
@@ -212,7 +212,7 @@ static void fsc(heap h, descriptor out, const char *target_root, filesystem fs, 
 
     filesystem_write_tuple(fs, md, ignore_status);
     vector i;
-    vector_foreach(worklist, i) {
+    vector_foreach(i, worklist) {
         tuple f = vector_get(i, 0);        
         buffer contents = get_file_contents(h, target_root, vector_get(i, 1));
         if (contents) {
@@ -367,9 +367,9 @@ int main(int argc, char **argv)
         }
     }
 
-    parser p = tuple_parser(h, closure(h, finish, h), closure(h, perr));
+    buffer_handler p = tuple_parser(h, closure(h, finish, h), closure(h, perr));
     // this can be streaming
-    parser_feed (p, read_stdin(h));
+    apply (p, read_stdin(h), ignore);
     // fixing the size doesn't make sense in this context?
     create_filesystem(h,
                       SECTOR_SIZE,

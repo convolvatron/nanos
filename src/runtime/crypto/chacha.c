@@ -5,7 +5,7 @@ Public domain.
 */
 
 /* $OpenBSD: chacha.c,v 1.1 2013/11/21 00:45:44 djm Exp $ */
-
+#include <runtime.h>
 #include "crypto/chacha.h"
 
 #define NULL (0)

@@ -1,4 +1,3 @@
-#pragma once
 typedef tuple status;
 typedef closure_type(status_handler, void, status);
 

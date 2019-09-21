@@ -12,6 +12,10 @@ SRCS-stage3.img= \
 	$(SRCDIR)/gdb/gdbstub.c \
 	$(SRCDIR)/gdb/gdbutil.c \
 	$(SRCDIR)/http/http.c \
+	$(SRCDIR)/http/draw.js \
+	$(SRCDIR)/http/websocket.c \
+	$(SRCDIR)/http/json.c \
+	$(SRCDIR)/http/base64.c \
 	$(SRCDIR)/net/net.c \
 	$(SRCDIR)/net/direct.c \
 	$(SRCDIR)/net/netsyscall.c \

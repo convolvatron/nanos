@@ -15,3 +15,5 @@ void proc_resume(process p);
 
 timestamp proc_utime(process p);
 timestamp proc_stime(process p);
+
+process current_process();

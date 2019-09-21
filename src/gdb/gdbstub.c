@@ -307,8 +307,8 @@ static boolean handle_request(gdb g, buffer b, buffer output)
 
 #define ASCII_CONTROL_C 0x03
 // not completely reassembling (meaning we dont handle fragments?)
-static CLOSURE_1_1(gdbserver_input, void, gdb, buffer);
-static void gdbserver_input(gdb g, buffer b)
+static CLOSURE_1_2(gdbserver_input, void, gdb, buffer, thunk);
+static void gdbserver_input(gdb g, buffer b, thunk k)
 {
     char ch = '0';
     /* wait around for the start character, ignore all other characters */
@@ -347,7 +347,7 @@ static void gdbserver_input(gdb g, buffer b)
             g->checksum =0;
         } else {
             push_character(g->out, '+');	/* successful transfer */
-            apply(g->output_handler, g->out);
+            apply(g->output_handler, g->out, ignore);
             if (handle_request(g, g->in, g->output)) {
                 putpacket (g, g->output);
             }

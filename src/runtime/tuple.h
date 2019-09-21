@@ -1,4 +1,3 @@
-#pragma once
 typedef table tuple;
 
 typedef struct encoder *encoder;

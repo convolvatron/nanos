@@ -6,8 +6,8 @@
 #include <http.h>
 #include <net.h>
 
-static CLOSURE_2_1(read_program_complete, void, process, tuple, buffer);
-static void read_program_complete(process kp, tuple root, buffer b)
+static CLOSURE_2_2(read_program_complete, void, process, tuple, buffer, thunk);
+static void read_program_complete(process kp, tuple root, buffer b, thunk k)
 {
     if (table_find(root, sym(trace))) {
         rprintf("read program complete: %p ", root);
@@ -56,6 +56,9 @@ void startup(kernel_heaps kh,
     if (kp == INVALID_ADDRESS) {
 	halt("unable to initialize unix instance; halt\n");
     }
+        
+    init_network_iface(root);
+
     heap general = heap_general(kh);
     buffer_handler pg = closure(general, read_program_complete, kp, root);
     if(table_find(root, sym(http))) {
@@ -63,11 +66,11 @@ void startup(kernel_heaps kh,
         listen_port(general, 8080, closure(general, each_connection, general));
         rprintf("Server started on port %d\n", 8080);        
     }
+    
     value p = table_find(root, sym(program));
     if (p) {
         tuple pro = resolve_path(root, split(general, p, '/'));
         filesystem_read_entire(fs, pro, heap_backed(kh), pg, closure(general, read_program_fail));
     }
-    init_network_iface(root);
 }
 
