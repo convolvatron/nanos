@@ -28,8 +28,6 @@
 #include "8cc.h"
 
 static vector buffers = &EMPTY_VECTOR;
-static Token *space_token = &(Token){ TSPACE };
-static Token *newline_token = &(Token){ TNEWLINE };
 static Token *eof_token = &(Token){ TEOF };
 
 typedef struct {
@@ -40,7 +38,7 @@ typedef struct {
 static Pos pos;
 
 static char *pos_string(Pos *p) {
-    File *f = current_file();
+    //    File *f = current_file();
     return format("%s:%d:%d", f ? f->name : "(unknown)", p->line, p->column);
 }
 
@@ -49,20 +47,8 @@ static char *pos_string(Pos *p) {
 
 static void skip_block_comment(void);
 
-void lex_init(char *filename) {
-    vec_push(buffers, make_vector());
-    if (!strcmp(filename, "-")) {
-        stream_push(make_file(stdin, "-"));
-        return;
-    }
-    FILE *fp = fopen(filename, "r");
-    if (!fp)
-        error("Cannot open %s: %s", filename, strerror(errno));
-    stream_push(make_file(fp, filename));
-}
-
 static Pos get_pos(int delta) {
-    File *f = current_file();
+    //    File *f = current_file();
     return (Pos){ f->line, f->column + delta };
 }
 
@@ -74,7 +60,7 @@ static Token *make_token(Token *tmpl) {
     Token *r = malloc(sizeof(Token));
     *r = *tmpl;
     r->hideset = NULL;
-    File *f = current_file();
+    //    File *f = current_file();
     r->file = f;
     r->line = pos.line;
     r->column = pos.column;
@@ -86,15 +72,15 @@ static Token *make_ident(char *p) {
     return make_token(&(Token){ TIDENT, .sval = p });
 }
 
-static Token *make_strtok(char *s, int len, int enc) {
-    return make_token(&(Token){ TSTRING, .sval = s, .slen = len, .enc = enc });
+static Token *make_strtok(buffer b, int enc) {
+    return make_token(&(Token){ TSTRING, .sval = b, .enc = enc });
 }
 
 static Token *make_keyword(int id) {
     return make_token(&(Token){ TKEYWORD, .id = id });
 }
 
-static Token *make_number(char *s) {
+static Token *make_number(buffer s) {
     return make_token(&(Token){ TNUMBER, .sval = s });
 }
 
@@ -177,49 +163,6 @@ static void skip_string() {
     for (int c = readc(); c != EOF && c != '"'; c = readc())
         if (c == '\\')
             readc();
-}
-
-// Skips a block of code excluded from input by #if, #ifdef and the like.
-// C11 6.10 says that code within #if and #endif needs to be a sequence of
-// valid tokens even if skipped. However, in reality, most compilers don't
-// tokenize nor validate contents. We don't do that, too.
-// This function is to skip code until matching #endif as fast as we can.
-void skip_cond_incl() {
-    int nest = 0;
-    for (;;) {
-        bool bol = (current_file()->column == 1);
-        skip_space();
-        int c = readc();
-        if (c == EOF)
-            return;
-        if (c == '\'') {
-            skip_char();
-            continue;
-        }
-        if (c == '\"') {
-            skip_string();
-            continue;
-        }
-        if (c != '#' || !bol)
-            continue;
-        int column = current_file()->column - 1;
-        Token *tok = lex();
-        if (tok->kind != TIDENT)
-            continue;
-        if (!nest && (is_ident(tok, "else") || is_ident(tok, "elif") || is_ident(tok, "endif"))) {
-            unget_token(tok);
-            Token *hash = make_keyword('#');
-            hash->bol = true;
-            hash->column = column;
-            unget_token(hash);
-            return;
-        }
-        if (is_ident(tok, "if") || is_ident(tok, "ifdef") || is_ident(tok, "ifndef"))
-            nest++;
-        else if (nest && is_ident(tok, "endif"))
-            nest--;
-        skip_line();
-    }
 }
 
 // Reads a number literal. Lexer's grammar on numbers is not strict.
@@ -517,79 +460,21 @@ static bool buffer_empty() {
     return vec_len(buffers) == 1 && vec_len(vec_head(buffers)) == 0;
 }
 
-// Reads a header file name for #include.
-//
-// Filenames after #include need a special tokenization treatment.
-// A filename string may be quoted by < and > instead of "".
-// Even if it's quoted by "", it's still different from a regular string token.
-// For example, \ in this context is not interpreted as a quote.
-// Thus, we cannot use lex() to read a filename.
-//
-// That the C preprocessor requires a special lexer behavior only for
-// #include is a violation of layering. Ideally, the lexer should be
-// agnostic about higher layers status. But we need this for the C grammar.
-char *read_header_file_name(bool *std) {
-    if (!buffer_empty())
-        return NULL;
-    skip_space();
-    Pos p = get_pos(0);
-    char close;
-    if (next('"')) {
-        *std = false;
-        close = '"';
-    } else if (next('<')) {
-        *std = true;
-        close = '>';
-    } else {
-        return NULL;
-    }
-    buffer b = make_buffer();
-    while (!next(close)) {
-        int c = readc();
-        if (c == EOF || c == '\n')
-            errorp(p, "premature end of header name");
-        buf_write(b, c);
-    }
-    if (buf_len(b) == 0)
-        errorp(p, "header name should not be empty");
-    buf_write(b, '\0');
-    return buf_body(b);
-}
-
 bool is_keyword(Token *tok, int c) {
     return (tok->kind == TKEYWORD) && (tok->id == c);
-}
-
-// Temporarily switches the input token stream to given list of tokens,
-// so that you can get the tokens as return values of lex() again.
-// After the tokens are exhausted, EOF is returned from lex() until
-// "unstash" is called to restore the original state.
-void token_buffer_stash(vector buf) {
-    vec_push(buffers, buf);
-}
-
-void token_buffer_unstash() {
-    vec_pop(buffers);
-}
-
-void unget_token(Token *tok) {
-    if (tok->kind == TEOF)
-        return;
-    vector buf = vec_tail(buffers);
-    vec_push(buf, tok);
 }
 
 // Reads a token from a given string.
 // This function temporarily switches the main input stream to
 // a given string and reads one token.
-Token *lex_string(char *s) {
-    stream_stash(make_file_string(s));
+Token *lex_string(buffer b) {
+    //    stream_stash(make_file_string(s));
     Token *r = do_read_token();
     next('\n');
     Pos p = get_pos(0);
     if (peek() != EOF)
-        errorp(p, "unconsumed input: %s", s);
-    stream_unstash();
+        //        errorp(p, "unconsumed input: %s", s);
+    //    stream_unstash();
     return r;
 }
 

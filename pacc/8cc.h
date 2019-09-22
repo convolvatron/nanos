@@ -1,6 +1,5 @@
 #include <runtime.h>
 
-
 enum {
     TIDENT,
     TKEYWORD,
@@ -9,11 +8,6 @@ enum {
     TSTRING,
     TEOF,
     TINVALID,
-    // Only in CPP
-    MIN_CPP_TOKEN,
-    TNEWLINE,
-    TSPACE,
-    TMACRO_PARAM,
 };
 
 enum {
@@ -33,16 +27,6 @@ typedef struct Map {
     int nused;
 } Map;
 
-typedef struct {
-    void **body;
-    int len;
-    int nalloc;
-} Vector;
-
-typedef struct {
-    struct Map *map;
-    Vector *key;
-} Dict;
 
 typedef struct Set {
     char *v;
@@ -77,11 +61,10 @@ typedef struct {
     Set *hideset; // used by the preprocessor for macro expansion
     union {
         // TKEYWORD
-        int id;
+        symbol id;
         // TSTRING or TCHAR
         struct {
-            char *sval;
-            int slen;
+            buffer sval;
             int c;
             int enc;
         };
@@ -159,13 +142,13 @@ typedef struct Type {
     int size;
     int align;
     boolean usig; // true if unsigned
+    buffer name;    
     boolean isstatic;
     // pointer or array
     struct Type *ptr;
     // array length
     int len;
-    // struct
-    Dict *fields;
+    vector fields;
     int offset;
     boolean is_struct; // true if struct, false if union
     // bitfield
@@ -173,9 +156,10 @@ typedef struct Type {
     int bitsize;
     // function
     struct Type *rettype;
-    Vector *params;
+    vector params;
     boolean hasva;
     boolean oldstyle;
+
 } Type;
 
 typedef struct {
@@ -197,7 +181,7 @@ typedef struct Node {
         };
         // String
         struct {
-            char *sval;
+            buffer sval;
             char *slabel;
         };
         // Local/global variable
@@ -205,7 +189,7 @@ typedef struct Node {
             char *varname;
             // local
             int loff;
-            Vector *lvarinit;
+            vector lvarinit;
             // global
             char *glabel;
         };
@@ -220,21 +204,21 @@ typedef struct Node {
         };
         // Function call or function declaration
         struct {
-            char *fname;
+            string fname;
             // Function call
-            Vector *args;
+            vector args;
             struct Type *ftype;
             // Function pointer or function designator
             struct Node *fptr;
             // Function declaration
-            Vector *params;
-            Vector *localvars;
+            vector params;
+            vector localvars;
             struct Node *body;
         };
         // Declaration
         struct {
             struct Node *declvar;
-            Vector *declinit;
+            vector declinit;
         };
         // Initializer
         struct {
@@ -256,7 +240,7 @@ typedef struct Node {
         // Return statement
         struct Node *retval;
         // Compound statement
-        Vector *stmts;
+        vector stmts;
         // Struct reference
         struct {
             struct Node *struc;
@@ -282,18 +266,11 @@ extern Type *type_float;
 extern Type *type_double;
 extern Type *type_ldouble;
 
-// debug.c
-char *ty2s(Type *ty);
-char *node2s(Node *node);
-char *tok2s(Token *tok);
-
 // error.c
 extern boolean enable_warning;
 extern boolean dumpstack;
 extern boolean dumpsource;
 extern boolean warning_is_error;
-
-#define NULL ((void *)0)
 
 #define STR2(x) #x
 #define STR(x) STR2(x)
@@ -312,20 +289,17 @@ char *get_base_file(void);
 void skip_cond_incl(void);
 char *read_header_file_name(boolean *std);
 boolean is_keyword(Token *tok, int c);
-void token_buffer_stash(Vector *buf);
+void token_buffer_stash(vector *buf);
 void token_buffer_unstash();
 void unget_token(Token *tok);
 Token *lex_string(char *s);
 Token *lex(void);
 
 // parse.c
-char *make_tempname(void);
-char *make_label(void);
 boolean is_inttype(Type *ty);
-boolean is_flotype(Type *ty);
 void *make_pair(void *first, void *second);
 int eval_intexpr(Node *node, Node **addr);
 Node *read_expr(void);
-Vector *read_toplevels(void);
+vector *read_toplevels(void);
 void parse_init(void);
 

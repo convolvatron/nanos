@@ -2,89 +2,97 @@
 
 #include "8cc.h"
 
-static string decorate_int(heap h, char *name, Type *ty) {
-    char *u = (ty->usig) ? "u" : "";
-    if (ty->bitsize > 0)
-        return aprintf(h, "%s%s:%d:%d", u, name, ty->bitoff, ty->bitoff + ty->bitsize);
-    return aprintf(h, "%s%s", u, name);
-}
+//static string decorate_int(char *name, Type *ty) {
+//    char *u = (ty->usig) ? "u" : "";
+//    if (ty->bitsize > 0)
+//        return aprintf(h, "%s%s:%d:%d", u, name, ty->bitoff, ty->bitoff + ty->bitsize);
+//    return aprintf(h, "%s%s", u, name);
+//}
 
 
+heap transient; // xx -elim
 #define sstring staticbuffer
-static string string_from_type(heap h, tuple dict, Type *ty) {
+// just keep this in the type
+static string string_from_type(Type *ty) {
     if (!ty)
         return sstring("(nil)");
     switch (ty->kind) {
     case KIND_VOID: return sstring("void");
-    case KIND_BOOLEAN: return sstring("_Bool");
-    case KIND_CHAR: return decorate_int(h, "char", ty);
-    case KIND_SHORT: return decorate_int(h, "short", ty);
-    case KIND_INT:  return decorate_int(h, "int", ty);
-    case KIND_LONG: return decorate_int(h, "long", ty);
-    case KIND_LLONG: return decorate_int(h, "llong", ty);
-    case KIND_FLOAT: return sstring("float");
-    case KIND_DOUBLE: return sstring("double");
-    case KIND_LDOUBLE: return sstring("long double");
+        
+    case KIND_BOOLEAN: return sstring("boolean");
+        // these look suspiciously the same
+    case KIND_CHAR: return sstring("char");
+    case KIND_SHORT: return sstring("short");
+    case KIND_INT:  return sstring("int");
+    case KIND_LONG: return sstring("long");
+    case KIND_LLONG: return sstring("llong");
+        
     case KIND_PTR:
-        return aprintf(h, "*%s", string_from_type(h, dict, ty->ptr));
+        return aprintf(transient, "*%s", string_from_type(ty->ptr));
+        
     case KIND_ARRAY:
-        return aprintf(h, "[%d]%s", ty->len, string_from_type(h, dict, ty->ptr));
+        return aprintf(transient, "[%d]%s", ty->len, string_from_type(ty->ptr));
+    // when to refer?
     case KIND_STRUCT: {
         char *kind = ty->is_struct ? "struct" : "union";
-        symbol key = intern(aprintf(transient, "%p", ty));
-        if (get(dict, key))
-            return aprintf(h, "(%s)", kind);
-        set(dict, key, true);
+        //        symbol key = intern(aprintf(transient, "%p", ty));
         if (ty->fields) {
-            buffer b = allocate_buffer(h, 10);
+            buffer b = allocate_buffer(transient, 10);
             bprintf(b, "(%s", kind);
             table_foreach(ty->fields, fkey, ftype) 
-                bprintf(b, " (%s)", do_ty2s(dict, ftype));
+                bprintf(b, " (%s)", string_from_type(ftype));
             bprintf(b, ")");
             return b;
         }
     }
     case KIND_FUNC: {
-        buffer b = allocate_buffer(h);
+        buffer b = allocate_buffer(transient, 10);
         bprintf(b, "(");
         if (ty->params) {
-            for (int i = 0; i < vec_len(ty->params); i++) {
-                if (i > 0)
-                    bprintf(b, ",");
-                Type *t = vec_get(ty->params, i);
-                bprintf(b, "%s", do_ty2s(dict, t));
+            boolean first = true;
+            Type *t;             
+            vector_foreach(ty->params, t) {
+                if (!first)  bprintf(b, ",");
+                first = false;
+                bprintf(b, "%s", string_from_type(t));
             }
         }
-        bprintf(b, ")=>%s", do_ty2s(dict, ty->rettype));
-        return buf_body(b);
+        bprintf(b, ")=>%s", string_from_type(ty->rettype));
+        return b;
     }
     default:
-        return aprintf("(Unknown ty: %d)", ty->kind);
+        return aprintf(transient, "(Unknown ty: %d)", ty->kind);
     }
 }
 
-char *ty2s(Type *ty) {
-    return do_ty2s(make_dict(), ty);
-}
+// shouldn't really need heap..
+static void node2s(buffer b, Node *node);
 
 static void uop_to_string(buffer b, char *op, Node *node) {
-    bprintf(b, "(%s %s)", op, node2s(node->operand));
+    bprintf(b, "(%s ", op);
+    node2s(b, node->operand);
+    bprintf(b, ")");
 }
 
 static void binop_to_string(buffer b, char *op, Node *node) {
-    bprintf(b, "(%s %s %s)", op, node2s(node->left), node2s(node->right));
+    bprintf(b, "(%s ");
+    node2s(b, node->left);
+    bprintf(b, " ");
+    node2s(b, node->right);
+    bprintf(b, ")");    
 }
 
 static void a2s_declinit(buffer b, vector initlist) {
-    for (int i = 0; i < vec_len(initlist); i++) {
-        if (i > 0)
-            bprintf(b, " ");
-        Node *init = vec_get(initlist, i);
-        bprintf(b, "%s", node2s(init));
+    Node *i;
+    boolean first = true;
+    vector_foreach(initlist, i) {
+        if (!first) bprintf(b, " ");
+        first = false;
+        node2s(b, i);
     }
 }
 
-static void do_node2s(buffer b, Node *node) {
+static void node2s(buffer b, Node *node) {
     if (!node) {
         bprintf(b, "(nil)");
         return;
@@ -107,13 +115,8 @@ static void do_node2s(buffer b, Node *node) {
         case KIND_LLONG:
             bprintf(b, "%lldL", node->ival);
             break;
-        case KIND_FLOAT:
-        case KIND_DOUBLE:
-        case KIND_LDOUBLE:
-            bprintf(b, "%f", node->fval);
-            break;
         case KIND_ARRAY:
-            bprintf(b, "\"%s\"", quote_cstring(node->sval));
+            bprintf(b, "\"%b\"", node->sval);
             break;
         default:
             error("internal error");
@@ -135,12 +138,18 @@ static void do_node2s(buffer b, Node *node) {
         break;
     case AST_FUNCALL:
     case AST_FUNCPTR_CALL: {
-        bprintf(b, "(%s)%s(", ty2s(node->ty),
-                   node->kind == AST_FUNCALL ? node->fname : node2s(node));
-        for (int i = 0; i < vec_len(node->args); i++) {
-            if (i > 0)
-                bprintf(b, ",");
-            bprintf(b, "%s", node2s(vec_get(node->args, i)));
+        bprintf(b, "(%s)",string_from_type(node->ty));
+        if (node->kind == AST_FUNCALL)
+            buffer_append(b, node->fname->contents, buffer_length(node->fname));
+        else
+            node2s(b, node);
+        // make a join        
+        boolean first = true;
+        value i;
+        vector_foreach(node->args, i) {
+            if (!first) bprintf(b, ",");
+            first = false;
+            node2s(b, i);
         }
         bprintf(b, ")");
         break;
@@ -150,24 +159,26 @@ static void do_node2s(buffer b, Node *node) {
         break;
     }
     case AST_FUNC: {
-        bprintf(b, "(%s)%s(", ty2s(node->ty), node->fname);
-        for (int i = 0; i < vec_len(node->params); i++) {
-            if (i > 0)
-                bprintf(b, ",");
-            Node *param = vec_get(node->params, i);
-            bprintf(b, "%s %s", ty2s(param->ty), node2s(param));
+        bprintf(b, "(%s)%s(", string_from_type(node->ty), node->fname);
+        boolean first = true;
+        Node *n;             
+        vector_foreach(node->ty->params, n) {
+            if (!first) bprintf(b, ",");
+            first = false;
+            bprintf(b, "%b ", string_from_type(n->ty));
+            node2s(b, n);
         }
         bprintf(b, ")");
-        do_node2s(b, node->body);
+        node2s(b, node->body);
         break;
     }
     case AST_GOTO:
         bprintf(b, "goto(%s)", node->label);
         break;
     case AST_DECL:
-        bprintf(b, "(decl %s %s",
-                   ty2s(node->declvar->ty),
-                   node->declvar->varname);
+        bprintf(b, "(decl %b %b",
+                string_from_type(node->declvar->ty),
+                node->declvar->varname);
         if (node->declinit) {
             bprintf(b, " ");
             a2s_declinit(b, node->declinit);
@@ -175,39 +186,51 @@ static void do_node2s(buffer b, Node *node) {
         bprintf(b, ")");
         break;
     case AST_INIT:
-        bprintf(b, "%s@%d", node2s(node->initval), node->initoff, ty2s(node->totype));
+        node2s(b, node->initval);
+        bprintf(b, "@%d%b", 
+                node->initoff,
+                string_from_type(node->totype));
         break;
     case AST_CONV:
-        bprintf(b, "(conv %s=>%s)", node2s(node->operand), ty2s(node->ty));
+        // fix
+        bprintf(b, "(conv %b=>%s)",
+                node2s(b, node->operand),
+                string_from_type(node->ty));
         break;
     case AST_IF:
-        bprintf(b, "(if %s %s",
-                   node2s(node->cond),
-                   node2s(node->then));
-        if (node->els)
-            bprintf(b, " %s", node2s(node->els));
+        bprintf(b, "(if ");
+        node2s(b, node->cond);
+        bprintf(b, " ");            
+        node2s(b, node->then);
+        if (node->els) {
+            bprintf(b, " ");                 
+            node2s(b, node->els);
+        }
         bprintf(b, ")");
         break;
     case AST_TERNARY:
-        bprintf(b, "(? %s %s %s)",
-                   node2s(node->cond),
-                   node2s(node->then),
-                   node2s(node->els));
+        bprintf(b, "(? ");
+        node2s(b, node->cond),        
+            bprintf(b, " ");
+        node2s(b, node->then),        
+            bprintf(b, " ");
+        node2s(b, node->els);        
         break;
     case AST_RETURN:
         bprintf(b, "(return %s)", node2s(node->retval));
         break;
     case AST_COMPOUND_STMT: {
         bprintf(b, "{");
-        for (int i = 0; i < vec_len(node->stmts); i++) {
-            do_node2s(b, vec_get(node->stmts, i));
+        Node *i;
+        vector_foreach(node->stmts, i) {
+            node2s(b, i);
             bprintf(b, ";");
         }
         bprintf(b, "}");
         break;
     }
     case AST_STRUCT_REF:
-        do_node2s(b, node->struc);
+        node2s(b, node->struc);
         bprintf(b, ".");
         bprintf(b, node->field);
         break;
@@ -240,32 +263,29 @@ static void do_node2s(buffer b, Node *node) {
     case '&': binop_to_string(b, "&", node); break;
     case '|': binop_to_string(b, "|", node); break;
     case OP_CAST: {
-        bprintf(b, "((%s)=>(%s) %s)",
-                   ty2s(node->operand->ty),
-                   ty2s(node->ty),
-                   node2s(node->operand));
+        bprintf(b, "((%b)=>(%b) ",
+                string_from_type(node->operand->ty),
+                string_from_type(node->ty));
+        node2s(b, node->operand);
+        bprintf(b, ")");
         break;
     }
     case OP_LABEL_ADDR:
         bprintf(b, "&&%s", node->label);
         break;
     default: {
-        char *left = node2s(node->left);
-        char *right = node2s(node->right);
         if (node->kind == OP_EQ)
             bprintf(b, "(== ");
         else
             bprintf(b, "(%c ", node->kind);
-        bprintf(b, "%s %s)", left, right);
+        node2s(b, node->left);
+        bprintf(b, " ");
+        node2s(b, node->right);
+        bprintf(b, ")");        
     }
     }
 }
 
-char *node2s(Node *node) {
-    buffer b = make_buffer();
-    do_node2s(b, node);
-    return buf_body(b);
-}
 
 static char *encoding_prefix(int enc) {
     switch (enc) {
@@ -277,31 +297,24 @@ static char *encoding_prefix(int enc) {
     return "";
 }
 
-string string_from_token(Token *tok) {
+string string_from_token(heap h, Token *tok) {
     if (!tok)
-        return "(null)";
+        return staticbuffer("(null)");
     switch (tok->kind) {
     case TIDENT:
         return tok->sval;
     case TKEYWORD:
-        switch (tok->id) {
-#define op(id, str)         case id: return str;
-#define keyword(id, str, _) case id: return str;
-#include "keyword.inc"
-#undef keyword
-#undef op
-        default: return aprintf("%c", tok->id);
-        }
+        return symbol_string(tok->id);
     case TCHAR:
-        return aprintf("%s'%s'",
-                      encoding_prefix(tok->enc),
-                      quote_char(tok->c));
+        return aprintf(h, "%s'%s'",
+                       encoding_prefix(tok->enc),
+                       quote_char(tok->c));
     case TNUMBER:
         return tok->sval;
     case TSTRING:
-        return aprintf("%s\"%s\"",
-                      encoding_prefix(tok->enc),
-                      quote_cstring(tok->sval));
+        return aprintf("%s\"%b\"",
+                       encoding_prefix(tok->enc),
+                       tok->sval);
     case TEOF:
         return "(eof)";
     case TINVALID:
