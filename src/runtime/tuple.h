@@ -30,3 +30,6 @@ static inline value value_from_u64(heap h, u64 v)
     print_number((buffer)result, v, 10, 0);
     return result;
 }
+
+#define get(_t, _k) table_find(_t, _k)
+#define set(_t, _k, _v) table_set(_t, _k, _v)

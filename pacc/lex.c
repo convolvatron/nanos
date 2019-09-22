@@ -30,111 +30,86 @@
 static vector buffers = &EMPTY_VECTOR;
 static Token *eof_token = &(Token){ TEOF };
 
-typedef struct {
-    int line;
-    int column;
-} Pos;
-
-static Pos pos;
-
 static char *pos_string(Pos *p) {
     //    File *f = current_file();
     return format("%s:%d:%d", f ? f->name : "(unknown)", p->line, p->column);
 }
 
-#define errorp(p, ...) errorf(__FILE__ ":" STR(__LINE__), pos_string(&p), __VA_ARGS__)
-#define warnp(p, ...)  warnf(__FILE__ ":" STR(__LINE__), pos_string(&p), __VA_ARGS__)
+#define errorp(p, ...) 
+#define warnp(p, ...)  
 
-static void skip_block_comment(void);
-
-static Pos get_pos(int delta) {
-    //    File *f = current_file();
-    return (Pos){ f->line, f->column + delta };
-}
-
-static void mark() {
-    pos = get_pos(0);
-}
-
-static Token *make_token(Token *tmpl) {
-    Token *r = malloc(sizeof(Token));
+static Token *make_token(heap h, buffer f, Token *tmpl) {
+    Token *r = allocate(h, sizeof(Token));
     *r = *tmpl;
-    r->hideset = NULL;
-    //    File *f = current_file();
     r->file = f;
     r->line = pos.line;
     r->column = pos.column;
-    r->count = f->ntok++;
     return r;
 }
 
-static Token *make_ident(char *p) {
-    return make_token(&(Token){ TIDENT, .sval = p });
+static Token *make_ident(heap h, buffer f, buffer b) {
+    return make_token(h, f, &(Token){ TIDENT, .sval = b });
 }
 
-static Token *make_strtok(buffer b, int enc) {
-    return make_token(&(Token){ TSTRING, .sval = b, .enc = enc });
+static Token *make_keyword(heap h, buffer f, int id) {
+    return make_token(h, f, &(Token){ TKEYWORD, .id = id });
 }
 
-static Token *make_keyword(int id) {
-    return make_token(&(Token){ TKEYWORD, .id = id });
+static Token *make_number(heap h, buffer f, buffer s) {
+    return make_token(h, f, &(Token){ TNUMBER, .sval = s });
 }
 
-static Token *make_number(buffer s) {
-    return make_token(&(Token){ TNUMBER, .sval = s });
+static Token *make_invalid(heap h, buffer f, char c) {
+    return make_token(h, f, &(Token){ TINVALID, .c = c });
 }
 
-static Token *make_invalid(char c) {
-    return make_token(&(Token){ TINVALID, .c = c });
-}
-
-static Token *make_char(int c, int enc) {
-    return make_token(&(Token){ TCHAR, .c = c, .enc = enc });
+static Token *make_char(heap h, buffer f, int c) {
+    return make_token(h, f, &(Token){ TCHAR, .c = c});
 }
 
 static bool iswhitespace(int c) {
     return c == ' ' || c == '\t' || c == '\f' || c == '\v';
 }
 
-static int peek() {
-    int r = readc();
-    unreadc(r);
-    return r;
-}
-
-static bool next(int expect) {
-    int c = readc();
-    if (c == expect)
+static bool next(buffer b, int expect) {
+    u8 c = *(u8 *)buffer_ref(b, 0);    
+    if (c == expect){
+        b->start++;
         return true;
-    unreadc(c);
+    }
     return false;
 }
 
-static void skip_line() {
-    for (;;) {
-        int c = readc();
-        if (c == EOF)
-            return;
-        if (c == '\n') {
-            unreadc(c);
-            return;
-        }
-    }
-}
-
-static bool do_skip_space() {
+static boolean do_skip_space(buffer b) {
     int c = readc();
     if (c == EOF)
         return false;
     if (iswhitespace(c))
         return true;
     if (c == '/') {
-        if (next('*')) {
-            skip_block_comment();
+        if (next(b, '*')) {
+            Pos p = get_pos(-2);
+            bool maybe_end = false;
+            for (;;) {
+                int c = readc();
+                if (c == EOF)
+                    errorp(p, "premature end of block comment");
+                if (c == '/' && maybe_end)
+                    return;
+                maybe_end = (c == '*');
+            }            
             return true;
         }
-        if (next('/')) {
-            skip_line();
+        if (next(b, '/')) {
+            for (;;) {
+                int c = readc();
+                if (c == EOF)
+                    return;
+                if (c == '\n') {
+                    unreadc(c);
+                    return;
+                }
+            }            
             return true;
         }
     }
@@ -144,14 +119,14 @@ static bool do_skip_space() {
 
 // Skips spaces including comments.
 // Returns true if at least one space is skipped.
-static bool skip_space() {
+static boolean skip_space(b) {
     if (!do_skip_space())
         return false;
     while (do_skip_space());
     return true;
 }
 
-static void skip_char() {
+static void skip_char(b) {
     if (readc() == '\\')
         readc();
     int c = readc();
@@ -159,22 +134,15 @@ static void skip_char() {
         c = readc();
 }
 
-static void skip_string() {
-    for (int c = readc(); c != EOF && c != '"'; c = readc())
-        if (c == '\\')
-            readc();
-}
-
 // Reads a number literal. Lexer's grammar on numbers is not strict.
 // Integers and floating point numbers and different base numbers are not distinguished.
-static Token *read_number(char c) {
+static Token *read_number(buffer b) {
     buffer b = make_buffer();
     buf_write(b, c);
     char last = c;
     for (;;) {
         int c = readc();
-        bool flonum = strchr("eEpP", last) && strchr("+-", c);
-        if (!isdigit(c) && !isalpha(c) && c != '.' && !flonum) {
+        if (!isdigit(c) && !isalpha(c))
             unreadc(c);
             buf_write(b, '\0');
             return make_number(buf_body(b));
@@ -215,35 +183,6 @@ static int read_hex_char() {
         default: unreadc(c); return r;
         }
     }
-}
-
-static bool is_valid_ucn(unsigned int c) {
-    // C11 6.4.3p2: U+D800 to U+DFFF are reserved for surrogate pairs.
-    // A codepoint within the range cannot be a valid character.
-    if (0xD800 <= c && c <= 0xDFFF)
-        return false;
-    // It's not allowed to encode ASCII characters using \U or \u.
-    // Some characters not in the basic character set (C11 5.2.1p3)
-    // are allowed as exceptions.
-    return 0xA0 <= c || c == '$' || c == '@' || c == '`';
-}
-
-// Reads \u or \U escape sequences. len is 4 or 8, respecitvely.
-static int read_universal_char(int len) {
-    Pos p = get_pos(-2);
-    unsigned int r = 0;
-    for (int i = 0; i < len; i++) {
-        char c = readc();
-        switch (c) {
-        case '0' ... '9': r = (r << 4) | (c - '0'); continue;
-        case 'a' ... 'f': r = (r << 4) | (c - 'a' + 10); continue;
-        case 'A' ... 'F': r = (r << 4) | (c - 'A' + 10); continue;
-        default: errorp(p, "invalid universal character: %c", c);
-        }
-    }
-    if (!is_valid_ucn(r))
-        errorp(p, "invalid universal character: \\%c%0*x", (len == 4) ? 'u' : 'U', len, r);
-    return r;
 }
 
 static int read_escaped_char() {
@@ -289,8 +228,8 @@ static Token *read_char(int enc) {
 }
 
 // Reads a string literal.
-static Token *read_string(int enc) {
-    buffer b = make_buffer();
+static Token *read_string(heap h, buffer b) {
+    buffer b = allocate_buffer(h, 10);
     for (;;) {
         int c = readc();
         if (c == EOF)
@@ -309,42 +248,26 @@ static Token *read_string(int enc) {
         }
         buf_write(b, c);
     }
-    buf_write(b, '\0');
-    return make_strtok(buf_body(b), buf_len(b), enc);
+    return make_token(&(Token){ TSTRING, .sval = b})
 }
 
 static Token *read_ident(char c) {
     buffer b = make_buffer();
-    buf_write(b, c);
+    buffer_write_byte(b, c);
     for (;;) {
-        c = readc();
+        u8 c = *(u8 *)buffer_ref(b, 0);
+        // check to make sure this handles utf8
         if (isalnum(c) || (c & 0x80) || c == '_' || c == '$') {
-            buf_write(b, c);
+            buffer_write_byte(b, c);
+            b->start++;
             continue;
         }
-        // C11 6.4.2.1: \u or \U characters (universal-character-name)
-        // are allowed to be part of identifiers.
-        if (c == '\\' && (peek() == 'u' || peek() == 'U')) {
-            write_utf8(b, read_escaped_char());
-            continue;
-        }
-        unreadc(c);
-        buf_write(b, '\0');
-        return make_ident(buf_body(b));
+        return make_ident(b);
     }
 }
 
 static void skip_block_comment() {
-    Pos p = get_pos(-2);
-    bool maybe_end = false;
-    for (;;) {
-        int c = readc();
-        if (c == EOF)
-            errorp(p, "premature end of block comment");
-        if (c == '/' && maybe_end)
-            return;
-        maybe_end = (c == '*');
-    }
+
 }
 
 // Reads a digraph starting with '%'. Digraphs are alternative spellings
@@ -352,11 +275,11 @@ static void skip_block_comment() {
 // We implement this just for the standard compliance.
 // See C11 6.4.6p3 for the spec.
 static Token *read_hash_digraph() {
-    if (next('>'))
+    if (next(b, '>'))
         return make_keyword('}');
-    if (next(':')) {
-        if (next('%')) {
-            if (next(':'))
+    if (next(b, ':')) {
+        if (next(b, '%')) {
+            if (next(b, ':'))
                 return make_keyword(KHASHHASH);
             unreadc('%');
         }
@@ -366,24 +289,25 @@ static Token *read_hash_digraph() {
 }
 
 static Token *read_rep(char expect, int t1, int els) {
-    return make_keyword(next(expect) ? t1 : els);
+    return make_keyword(next(b, expect) ? t1 : els);
 }
 
 static Token *read_rep2(char expect1, int t1, char expect2, int t2, char els) {
-    if (next(expect1))
+    if (next(b, expect1))
         return make_keyword(t1);
-    return make_keyword(next(expect2) ? t2 : els);
+    return make_keyword(next(b, expect2) ? t2 : els);
 }
 
-static Token *do_read_token() {
-    if (skip_space())
-        return space_token;
-    mark();
-    int c = readc();
+// not the prettiest state machine at 
+static Token *do_read_token(buffer b) {
+    if (buffer_length(b)  == 0) {
+        return eof_token;
+    }
+    u8 c = *(u8 *)buffer_ref(b, 0);
     switch (c) {
     case '\n': return newline_token;
-    case ':': return make_keyword(next('>') ? ']' : ':');
-    case '#': return make_keyword(next('#') ? KHASHHASH : '#');
+    case ':': return make_keyword(next(b, '>') ? ']' : ':');
+    case '#': return make_keyword(next(b, '#') ? KHASHHASH : '#');
     case '+': return read_rep2('+', OP_INC, '=', OP_A_ADD, '+');
     case '*': return read_rep('=', OP_A_MUL, '*');
     case '=': return read_rep('=', OP_EQ, '=');
@@ -393,26 +317,19 @@ static Token *do_read_token() {
     case '^': return read_rep('=', OP_A_XOR, '^');
     case '"': return read_string(ENC_NONE);
     case '\'': return read_char(ENC_NONE);
-    case '/': return make_keyword(next('=') ? OP_A_DIV : '/');
+    case '/': return make_keyword(next(b, '=') ? OP_A_DIV : '/');
     case 'a' ... 't': case 'v' ... 'z': case 'A' ... 'K':
     case 'M' ... 'T': case 'V' ... 'Z': case '_': case '$':
     case 0x80 ... 0xFD:
-        return read_ident(c);
+        return read_ident(b);
     case '0' ... '9':
-        return read_number(c);
-    case 'L': case 'U': {
-        // Wide/char32_t character/string literal
-        int enc = (c == 'L') ? ENC_WCHAR : ENC_CHAR32;
-        if (next('"'))  return read_string(enc);
-        if (next('\'')) return read_char(enc);
-        return read_ident(c);
-    }
+        return read_number(b);
     case 'u':
-        if (next('"')) return read_string(ENC_CHAR16);
-        if (next('\'')) return read_char(ENC_CHAR16);
+        if (next(b, '"')) return read_string(ENC_CHAR16);
+        if (next(b, '\'')) return read_char(ENC_CHAR16);
         // C11 6.4.5: UTF-8 string literal
-        if (next('8')) {
-            if (next('"'))
+        if (next(b, '8')) {
+            if (next(b, '"'))
                 return read_string(ENC_UTF8);
             unreadc('8');
         }
@@ -420,8 +337,8 @@ static Token *do_read_token() {
     case '.':
         if (isdigit(peek()))
             return read_number(c);
-        if (next('.')) {
-            if (next('.'))
+        if (next(b, '.')) {
+            if (next(b, '.'))
                 return make_keyword(KELLIPSIS);
             return make_ident("..");
         }
@@ -430,19 +347,19 @@ static Token *do_read_token() {
     case '}': case '?': case '~':
         return make_keyword(c);
     case '-':
-        if (next('-')) return make_keyword(OP_DEC);
-        if (next('>')) return make_keyword(OP_ARROW);
-        if (next('=')) return make_keyword(OP_A_SUB);
+        if (next(b, '-')) return make_keyword(OP_DEC);
+        if (next(b, '>')) return make_keyword(OP_ARROW);
+        if (next(b, '=')) return make_keyword(OP_A_SUB);
         return make_keyword('-');
     case '<':
-        if (next('<')) return read_rep('=', OP_A_SAL, OP_SAL);
-        if (next('=')) return make_keyword(OP_LE);
-        if (next(':')) return make_keyword('[');
-        if (next('%')) return make_keyword('{');
+        if (next(b, '<')) return read_rep('=', OP_A_SAL, OP_SAL);
+        if (next(b, '=')) return make_keyword(OP_LE);
+        if (next(b, ':')) return make_keyword('[');
+        if (next(b, '%')) return make_keyword('{');
         return make_keyword('<');
     case '>':
-        if (next('=')) return make_keyword(OP_GE);
-        if (next('>')) return read_rep('=', OP_A_SAR, OP_SAR);
+        if (next(b, '=')) return make_keyword(OP_GE);
+        if (next(b, '>')) return read_rep('=', OP_A_SAR, OP_SAR);
         return make_keyword('>');
     case '%': {
         Token *tok = read_hash_digraph();
@@ -450,46 +367,10 @@ static Token *do_read_token() {
             return tok;
         return read_rep('=', OP_A_MOD, '%');
     }
-    case EOF:
-        return eof_token;
-    default: return make_invalid(c);
-    }
 }
 
-static bool buffer_empty() {
-    return vec_len(buffers) == 1 && vec_len(vec_head(buffers)) == 0;
-}
-
-bool is_keyword(Token *tok, int c) {
+boolean is_keyword(Token *tok, int c) {
     return (tok->kind == TKEYWORD) && (tok->id == c);
 }
 
-// Reads a token from a given string.
-// This function temporarily switches the main input stream to
-// a given string and reads one token.
-Token *lex_string(buffer b) {
-    //    stream_stash(make_file_string(s));
-    Token *r = do_read_token();
-    next('\n');
-    Pos p = get_pos(0);
-    if (peek() != EOF)
-        //        errorp(p, "unconsumed input: %s", s);
-    //    stream_unstash();
-    return r;
-}
 
-Token *lex() {
-    vector buf = vec_tail(buffers);
-    if (vec_len(buf) > 0)
-        return vec_pop(buf);
-    if (vec_len(buffers) > 1)
-        return eof_token;
-    bool bol = (current_file()->column == 1);
-    Token *tok = do_read_token();
-    while (tok->kind == TSPACE) {
-        tok = do_read_token();
-        tok->space = true;
-    }
-    tok->bol = bol;
-    return tok;
-}
