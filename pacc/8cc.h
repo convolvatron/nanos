@@ -1,10 +1,65 @@
 #include <runtime.h>
 
-typedef struct {
+
+typedef struct Type {
     symbol kind;
+    int size;
+    int align;
+    boolean usig; // true if unsigned
+    buffer name;    
+    boolean isstatic;
+    // pointer or array - soft instantiate!
+    struct Type *ptr;
+    // array length
+    int len;
+    vector fields;
+    int offset; // what is an offset?
+    // bitfield
+    int bitoff;
+    int bitsize;
+    // function
+    struct Type *rettype;
+    vector params; // params = fields
+    boolean hasva;
+} Type;
+
+
+typedef struct parse {
+    buffer b;
+    tuple globalenv;
+    tuple localenv;
+    tuple tags;
+    tuple labels;
+    tuple types;
+    
+    vector toplevels;
+    vector localvars;
+    vector gotos;
+    vector cases;
+    Type *current_func_type;
+    
+    char *defaultcase;
+    char *lbreak;
+    char *lcontinue;
+    
+    Type *type_void, *type_bool, *type_char, *type_short, *type_int;
+    Type  *type_long, *type_llong, *type_uchar, *type_ushort, *type_uint;
+    Type *type_ulong, *type_ullong, *type_enum;
+
+    tuple binops, unops; // spacify
+} *parse;
+
+
+typedef struct {
     buffer file;
     int line;
     int column;
+    int start, end;
+} SourceLoc;
+
+typedef struct {
+    symbol kind;
+    SourceLoc *s;
     union {
         // TKEYWORD - the same as kind really?
         symbol id;
@@ -16,40 +71,11 @@ typedef struct {
     };
 } Token;
 
-typedef struct Type {
-    symbol kind;
-    int size;
-    int align;
-    boolean usig; // true if unsigned
-    buffer name;    
-    boolean isstatic;
-    // pointer or array
-    struct Type *ptr;
-    // array length
-    int len;
-    vector fields;
-    int offset;
-    //     boolean is_struct; // true if struct, false if union
-    // bitfield
-    int bitoff;
-    int bitsize;
-    // function
-    struct Type *rettype;
-    vector params;
-    boolean hasva;
-    boolean oldstyle;
-} Type;
-
-typedef struct {
-    char *file;
-    int line;
-} SourceLoc;
-
 typedef struct Node {
     symbol kind;
     Type *ty;
     SourceLoc *sourceLoc;
-    parser p;
+    parse p;
     union {
         // Char, int, or long
         long ival;
@@ -65,12 +91,12 @@ typedef struct Node {
         };
         // Local/global variable
         struct {
-            char *varname;
+            buffer varname;
             // local
             int loff;
             vector lvarinit;
             // global
-            char *glabel;
+            buffer glabel;
         };
         // Binary operator
         struct {
@@ -113,8 +139,8 @@ typedef struct Node {
         };
         // Goto and label
         struct {
-            char *label;
-            char *newlabel;
+            buffer label;
+            buffer newlabel;
         };
         // Return statement
         struct Node *retval;
@@ -123,11 +149,18 @@ typedef struct Node {
         // Struct reference
         struct {
             struct Node *struc;
-            char *field;
+            buffer field;
             Type *fieldtype;
         };
     };
 } Node;
+
+
+typedef struct {
+    int beg;
+    int end;
+    buffer label;
+} Case;
 
 #define error(...)       
 #define errort(tok, ...) 
@@ -140,13 +173,13 @@ void warnf(char *line, char *pos, char *fmt, ...);
 // lex.c
 void lex_init(char *filename);
 boolean is_keyword(Token *tok, symbol c);
-void unget_token(Token *tok);
+Token *get_token(buffer b);
 Token *lex_string(char *s);
 Token *lex(void);
 
 // parse.c
 boolean is_inttype(Type *ty);
-void *make_pair(void *first, void *second);
+void *make_pair(heap h, void *first, void *second);
 int eval_intexpr(Node *node, Node **addr);
 Node *read_expr(void);
 vector *read_toplevels(void);

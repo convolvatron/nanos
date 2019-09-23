@@ -27,42 +27,38 @@
 #include <string.h>
 #include "8cc.h"
 
-static Token *eof_token = &(Token){ TEOF };
+static Token *eof_token;
 
-static char *pos_string(Pos *p) {
+SourceLoc *get_pos(int offset);
+
+static buffer pos_string(heap h, SourceLoc *s) {
     //    File *f = current_file();
-    return format("%s:%d:%d", f ? f->name : "(unknown)", p->line, p->column);
+    return aprintf(h, "%d:%d", s->line, s->column);
 }
 
 #define errorp(p, ...) 
 #define warnp(p, ...)  
 
-static Token *make_token(heap h, buffer f, Token *tmpl) {
+static Token *make_token(heap h, SourceLoc *s, Token *tmpl) {
     Token *r = allocate(h, sizeof(Token));
     *r = *tmpl;
-    r->file = f;
-    r->line = pos.line;
-    r->column = pos.column;
+    r->s = s;
     return r;
 }
 
-static Token *make_ident(heap h, buffer f, buffer b) {
-    return make_token(h, f, &(Token){ sym(ident), .sval = b });
+static Token *make_ident(heap h, buffer b) {
+    return make_token(h, 0, &(Token){ sym(ident), .sval = b });
 }
 
-static Token *make_keyword(heap h, buffer f, int id) {
+static Token *make_keyword(heap h, SourcePos f, symbol id) {
     return make_token(h, f, &(Token){ sym(keyword), .id = id });
 }
 
-static Token *make_number(heap h, buffer f, buffer s) {
+static Token *make_number(heap h, SourcePos f, buffer s) {
     return make_token(h, f, &(Token){ sym(number), .sval = s });
 }
 
-static Token *make_invalid(heap h, buffer f, char c) {
-    return make_token(h, f, &(Token){ sym(invalid), .c = c });
-}
-
-static Token *make_char(heap h, buffer f, int c) {
+static Token *make_char(heap h, SourcePos f, int c) {
     return make_token(h, f, &(Token){ sym(char), .c = c});
 }
 
@@ -86,17 +82,17 @@ static boolean next(buffer b, int expect) {
 }
 
 static boolean do_skip_space(buffer b) {
+    if (buffer_length(b) == 0) return false;
     int c = readc(b);
-    if (c == EOF) return false;
     if (iswhitespace(c)) return true;
     if (c == '/') {
         if (next(b, '*')) {
-            Pos p = get_pos(-2);
+            // SourceLoc *p = get_pos(-2);
             boolean maybe_end = false;
             for (;;) {
-                int c = readc(p);
-                if (c == EOF)
+                if (buffer_length(b) == 0)
                     errorp(p, "premature end of block comment");
+                int c = readc(b);
                 if (c == '/' && maybe_end)
                     return true;
                 maybe_end = (c == '*');
@@ -105,12 +101,12 @@ static boolean do_skip_space(buffer b) {
         }
         if (next(b, '/')) {
             for (;;) {
+                if (buffer_length(b) == 0) return true;
                 int c = readc(b);
-                if (c == EOF)
-                    return;
+                // keep going
                 if (c == '\n') {
                     unreadc(c);
-                    return;
+                    return true;
                 }
             }            
             return true;
@@ -122,25 +118,25 @@ static boolean do_skip_space(buffer b) {
 
 // Skips spaces including comments.
 // Returns true if at least one space is skipped.
-static boolean skip_space(b) {
+static boolean skip_space(buffer b) {
     if (!do_skip_space(b))
         return false;
     while (do_skip_space(b));
     return true;
 }
 
-static void skip_char(b) {
+static void skip_char(buffer b) {
+    // this isn't right
     if (readc(b) == '\\')
         readc(b);
-    int c = readc(b);
-    while (c != EOF && c != '\'')
-        c = readc(b);
+    char c;
+    while ((buffer_length(b) > 0) && (c = readc(b), c != '\''));
 }
 
 // Reads a number literal. Lexer's grammar on numbers is not strict.
 // Integers and floating point numbers and different base numbers are not distinguished.
 static Token *read_number(buffer b) {
-    buffer d = allocate_buffer();
+    buffer d = allocate_buffer(transient, 10);
     for (;;) {
         int c = readc(b);
         if (isdigit(c) || isalpha(c)) {
@@ -152,8 +148,8 @@ static Token *read_number(buffer b) {
     }
 }
 
-static bool nextoct() {
-    int c = peek();
+static boolean nextoct(buffer b) {
+    int c = readc(b);
     return '0' <= c && c <= '7';
 }
 
@@ -170,7 +166,7 @@ static int read_octal_char(buffer b, int c) {
 
 // Reads a \x escape sequence.
 static int read_hex_char(buffer b) {
-    Pos p = get_pos(-2);
+    SourceLoc *p = get_pos(-2);
     int c = readc(b);
     if (!isxdigit(c))
         errorp(p, "\\x is not followed by a hexadecimal character: %c", c);
@@ -186,7 +182,7 @@ static int read_hex_char(buffer b) {
 }
 
 static int read_escaped_char(buffer b) {
-    Pos p = get_pos(-1);
+    SourceLoc *p = get_pos(-1);
     int c = readc(b);
     // This switch-cases is an interesting example of magical aspects
     // of self-hosting compilers. Here, we teach the compiler about
@@ -207,10 +203,8 @@ static int read_escaped_char(buffer b) {
     case 't': return '\t';
     case 'v': return '\v';
     case 'e': return '\033';  // '\e' is GNU extension
-    case 'x': return read_hex_char();
-    case 'u': return read_universal_char(4);
-    case 'U': return read_universal_char(8);
-    case '0' ... '7': return read_octal_char(c);
+    case 'x': return read_hex_char(b);
+    case '0' ... '7': return read_octal_char(b, c);
     }
     warnp(p, "unknown escape character: \\%c", c);
     return c;
@@ -222,16 +216,15 @@ static Token *read_char(buffer b) {
     c = readc();
     if (c != '\'')
         errorp(pos, "unterminated char");
-    return make_char(r);
+    return make_char(transient, b, r);
 }
 
 // Reads a string literal.
 static Token *read_string(heap h, buffer b) {
     buffer b = allocate_buffer(h, 10);
     for (;;) {
+        if (buffer_length(b) == 0)  errorp(pos, "unterminated string");
         int c = readc(b);
-        if (c == EOF)
-            errorp(pos, "unterminated string");
         if (c == '"')
             break;
         if (c != '\\') {
@@ -241,7 +234,7 @@ static Token *read_string(heap h, buffer b) {
         c = read_escaped_char();
         buffer_write_byte(b, c);        
     }
-    return make_token(&(Token){ TSTRING, .sval = b})
+    return make_token(&(Token){ sym(string), .sval = b});
 }
 
 static Token *read_ident(heap h, char c) {
@@ -313,16 +306,6 @@ static Token *do_read_token(buffer b) {
         return read_ident(b);
     case '0' ... '9':
         return read_number(b);
-    case 'u':
-        if (next(b, '"')) return read_string(ENC_CHAR16);
-        if (next(b, '\'')) return read_char(ENC_CHAR16);
-        // C11 6.4.5: UTF-8 string literal
-        if (next(b, '8')) {
-            if (next(b, '"'))
-                return read_string(ENC_UTF8);
-            unreadc('8');
-        }
-        return read_ident(c);
     case '.':
         if (isdigit(peek()))
             return read_number(c);
@@ -356,6 +339,7 @@ static Token *do_read_token(buffer b) {
             return tok;
         return read_rep('=', OP_A_MOD, '%');
     }
+    }
 }
 
 boolean is_keyword(Token *tok, int c) {
@@ -363,3 +347,8 @@ boolean is_keyword(Token *tok, int c) {
 }
 
 
+void init_token()
+{
+    eof_token= &(Token){ sym(eof) };
+}
+ 
