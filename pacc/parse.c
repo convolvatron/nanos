@@ -1,50 +1,27 @@
 // Copyright 2012 Rui Ueyama. Released under the MIT license.
 #include "8cc.h"
 
-static tuple *globalenv = 0;
-static tuple *localenv;
-static tuple *tags = 0;
-static tuple *labels;
-
-static vector *toplevels;
-static vector localvars;
-static vector gotos;
-static vector cases;
-static Type *current_func_type;
-
-static char *defaultcase;
-static char *lbreak;
-static char *lcontinue;
-
-Type *type_void *type_bool, *type_char, *type_short, *type_int,
-    *type_long, *type_llong, *type_uchar, *type_ushort, *type_uint,
-    *type_ulong, *type_ullong, *type_enum;
-
-static Type* make_ptr_type(Type *ty);
-static Type* make_array_type(Type *ty, int size);
-static Node *read_compound_stmt(void);
-static void read_decl_or_stmt(vector list);
-static Node *conv(Node *node);
-static Node *read_stmt(void);
-static boolean is_type(Token *tok);
-static Node *read_unary_expr(void);
-static void read_decl(vector toplevel, boolean isglobal);
-static Type *read_declarator_tail(Type *basetype, vector params);
-static Type *read_declarator(char **name, Type *basetype, vector params, int ctx);
-static Type *read_abstract_declarator(Type *basetype);
-static Type *read_decl_spec(int *sclass);
-static Node *read_struct_field(Node *struc);
-static void read_initializer_list(vector inits, Type *ty, int off, boolean designated);
-static Type *read_cast_type(void);
-static vector read_decl_init(Type *ty);
-static Node *read_booleanean_expr(void);
-static Node *read_expr_opt(void);
-static Node *read_conditional_expr(void);
-static Node *read_assignment_expr(void);
-static Node *read_cast_expr(void);
-static Node *read_comma_expr(void);
-static Token *get_token(void);
-static Token *peek(void);
+typedef struct parse {
+    buffer b;
+    tuple globalenv;
+    tuple localenv;
+    tuple tags;
+    tuple labels;
+    
+    vector toplevels;
+    vector localvars;
+    vector gotos;
+    vector cases;
+    Type *current_func_type;
+    
+    char *defaultcase;
+    char *lbreak;
+    char *lcontinue;
+    
+    Type *type_void, *type_bool, *type_char, *type_short, *type_int;
+    Type  *type_long, *type_llong, *type_uchar, *type_ushort, *type_uint;
+    Type *type_ulong, *type_ullong, *type_enum;
+} *parse;
 
 typedef struct {
     int beg;
@@ -101,48 +78,44 @@ static Node *ast_inttype(Type *ty, long val) {
     return make_ast(&(Node){ sym(literal), ty, .ival = val });
 }
 
-static Node *ast_floattype(Type *ty, double val) {
-    return make_ast(&(Node){ sym(literal), ty, .fval = val });
-}
-
-// aren't these the same?
-static Node *ast_lvar(tuple env, Type *ty, char *name) {
+// aren't these the same(local and global)?
+static Node *ast_lvar(parse p, Type *ty, char *name) {
     Node *r = make_ast(&(Node){ sym(lvar), ty, .varname = name });
-    if (localenv)
-        set(env, name, r);
-    if (localvars)
-        vector_push(localvars, r);
+    if (p->localenv)
+        set(p->localenv, name, r);
+    if (p->localvars)
+        vector_push(p->localvars, r);
     return r;
 }
 
-static Node *ast_gvar(tuple env, Type *ty, char *name) {
+static Node *ast_gvar(parse p, Type *ty, char *name) {
     Node *r = make_ast(&(Node){ sym(gvar), ty, .varname = name, .glabel = name });
-    set(env, name, r);
+    set(p->globalenv, name, r);
     return r;
 }
 
-static Node *ast_static_lvar(Type *ty, char *name) {
+static Node *ast_static_lvar(parse p, Type *ty, char *name) {
     Node *r = make_ast(&(Node){
             .kind = sym(gvar),
                 .ty = ty,
                 .varname = name,
                 .glabel = make_static_label(name) });
-    assert(localenv);
-    set(localenv, name, r);
+    set(p->localenv, name, r);
     return r;
 }
 
+// make a little tree of environments?
 static Node *ast_typedef(tuple env, Type *ty, char *name) {
     Node *r = make_ast(&(Node){ sym(typedef), ty });
     set(env, name, r);
     return r;
 }
 
-static Node *ast_string(int enc, buffer in)
+static Node *ast_string(parse p, buffer in)
 {
     Type *ty;
     buffer b = in;
-    ty = make_array_type(type_char, buffer_length(in));
+    ty = make_array_type(p->type_char, buffer_length(in));
     return make_ast(&(Node){ sym(literal), .ty = ty, .sval = b });
 }
 
@@ -346,8 +319,8 @@ static void ensure_not_void(Type *ty) {
         error("void is not allowed");
 }
 
-static void expect(char id) {
-    Token *tok = get_token();
+static void expect(parse p, char id) {
+    Token *tok = get_token(p);
     if (!is_keyword(tok, id))
         errort(tok, "'%c' expected, but got %s", id, string_from_token(transient, tok));
 }
@@ -359,24 +332,20 @@ static Type *copy_incomplete_type(Type *ty) {
 
 static Type *get_typedef(tuple env, buffer name) {
     Node *node = get(env, intern(name));
-    return (node && node->kind) == sym(typedef) ? node->ty : NULL;
+    return (node && (node->kind == sym(typedef))) ? node->ty : NULL;
 }
 
-static boolean is_type(tuple env, Token *tok)
+static boolean is_type(parse p, Token *tok)
 {
     if (tok->kind == sym(ident))
         return get_typedef(tok->sval);
     if (tok->kind != sym(keyword))
         return false;
-    switch (tok->id) {
-        // all the standard types were pulled in with redefining op
-    default:
-        return false;
-    }
+    // all the standard types were pulled in with redefining op    
 }
 
-static boolean next_token(symbol kind) {
-    Token *tok = get_token();
+static boolean next_token(parser p, symbol kind) {
+    Token *tok = get_token(p->b);
     if (is_keyword(tok, kind))
         return true;
     unget_token(tok);
@@ -398,21 +367,22 @@ static Node *conv(Node *node) {
     // wtf?
     if (!node)
         return NULL;
-    type *ty = node->ty;
-    switch (ty->kind) {
-    case sym(array):
+    Type *ty = node->ty;
+    if (ty->kind == sym(array))
         // c11 6.3.2.1p3: an array of t is converted to a pointer to t.
         return ast_uop(sym(conv), make_ptr_type(ty->ptr), node);
-    case sym(func):
+    if (ty->kind == sym(func))
         // c11 6.3.2.1p4: a function designator is converted to a pointer to the function.
         return ast_uop(sym(addr), make_ptr_type(ty), node);
-    case sym(short): case sym(char): case sym(boolean):
+    if ((ty->kind == sym(short)) ||
+        (ty->kind == sym(char)) ||
+        (ty->kind == sym(boolean)))
         // c11 6.3.1.1p2: the integer promotions
-        return ast_conv(type_int, node);
-    case sym(int):
+        return ast_conv(node->p->type_int, node);
+    if ((ty->kind ==  sym(int))
         if (ty->bitsize > 0)
-            return ast_conv(type_int, node);
-    }
+            return ast_conv(node->p->type_int, node);
+        }
     return node;
 }
 
@@ -458,12 +428,11 @@ static boolean valid_pointer_binop(symbol op) {
         op == sym(!=) ||
         op == sym(<=) ||
         op == sym(>=))
-        return true
-            return false;
+        return true;
+    return false;
 }
 
-static Node *binop(int op, Node *lhs, Node *rhs) {
-    
+static Node *binop(symbol op, Node *lhs, Node *rhs) {
     if (lhs->ty->kind == sym(ptr) && rhs->ty->kind == sym(ptr)) {
         if (!valid_pointer_binop(op))
             error("invalid pointer arith");
@@ -786,9 +755,9 @@ static Node *read_primary_expr() {
     case TNUMBER:
         return read_number(tok);
     case TCHAR:
-        return ast_inttype(char_type(tok->enc), tok->c);
+        return ast_inttype(char_type(), tok->c);
     case TSTRING:
-        return ast_string(tok->enc, tok->sval, tok->slen);
+        return ast_string(tok->sval);
     case TKEYWORD:
         unget_token(tok);
         return NULL;
@@ -2250,27 +2219,30 @@ static void check_case_duplicates(vector cases) {
     }
 }
 
-#define SET_SWITCH_CONTEXT(brk)                 \
-    vector ocases = cases;                      \
-    char *odefaultcase = defaultcase;           \
-    char *obreak = lbreak;                      \
-    cases = allocate_vector(h);                 \
-    defaultcase = NULL;                         \
-    lbreak = brk
+// this is only two levels deep in the original code?
 
-#define RESTORE_SWITCH_CONTEXT()                \
-    cases = ocases;                             \
-    defaultcase = odefaultcase;                 \
-    lbreak = obreak
+#define SET_SWITCH_CONTEXT(p, brk)             \
+    p->ocases = p->cases;                      \
+    p->odefaultcase = p->defaultcase;          \
+    p->obreak = p->break;                      \
+    p->cases = p->allocate_vector(h);          \
+    p->defaultcase = NULL;                     \
+    p->lbreak = brk
 
-static Node *read_switch_stmt() {
-    expect('(');
+#define RESTORE_SWITCH_CONTEXT(p)              \
+    p->cases = p->ocases;                      \
+    p->defaultcase = p->odefaultcase;          \
+    p->lbreak = p->obreak
+
+static Node *read_switch_stmt(parser p)
+{
+    expect(p, '(');
     Node *expr = conv(read_expr());
     ensure_inttype(expr);
-    expect(')');
+    expect(p, ')');
 
     char *end = make_label();
-    SET_SWITCH_CONTEXT(end);
+    SET_SWITCH_CONTEXT(p, end);
     Node *body = read_stmt();
     vector v = allocate_vector(h);
     Node *var = ast_lvar(expr->ty, make_tempname());
@@ -2281,7 +2253,7 @@ static Node *read_switch_stmt() {
     if (body)
         vector_push(v, body);
     vector_push(v, ast_dest(end));
-    RESTORE_SWITCH_CONTEXT();
+    RESTORE_SWITCH_CONTEXT(p);
     return ast_compound_stmt(v);
 }
 
@@ -2294,7 +2266,7 @@ static Node *read_label_tail(Node *label) {
     return ast_compound_stmt(v);
 }
 
-static Node *read_case_label(Token *tok) {
+static Node *read_case_label(parser p, Token *tok) {
     if (!cases)
         errort(tok, "stray case label");
     char *label = make_label();
@@ -2313,7 +2285,7 @@ static Node *read_case_label(Token *tok) {
     return read_label_tail(ast_dest(label));
 }
 
-static Node *read_default_label(Token *tok) {
+static Node *read_default_label(parser p, Token *tok) {
     expect(':');
     if (defaultcase)
         errort(tok, "duplicate default");
@@ -2325,21 +2297,21 @@ static Node *read_default_label(Token *tok) {
  * Jump statements
  */
 
-static Node *read_break_stmt(Token *tok) {
+static Node *read_break_stmt(parser p, Token *tok) {
     expect(';');
     if (!lbreak)
         errort(tok, "stray break statement");
     return ast_jump(lbreak);
 }
 
-static Node *read_continue_stmt(Token *tok) {
+static Node *read_continue_stmt(parser p, Token *tok) {
     expect(';');
     if (!lcontinue)
         errort(tok, "stray continue statement");
     return ast_jump(lcontinue);
 }
 
-static Node *read_return_stmt() {
+static Node *read_return_stmt(parser p) {
     Node *retval = read_expr_opt();
     expect(';');
     if (retval)
@@ -2347,7 +2319,7 @@ static Node *read_return_stmt() {
     return ast_return(NULL);
 }
 
-static Node *read_goto_stmt() {
+static Node *read_goto_stmt(parser p) {
     if (next_token('*')) {
         // [GNU] computed goto. "goto *p" jumps to the address pointed by p.
         Token *tok = peek();
@@ -2365,7 +2337,8 @@ static Node *read_goto_stmt() {
     return r;
 }
 
-static Node *read_label(Token *tok) {
+static Node *read_label(Token *tok)
+{
     char *label = tok->sval;
     if (get(labels, label))
         errort(tok, "duplicate label: %s", tok2s(tok));
@@ -2378,26 +2351,26 @@ static Node *read_label(Token *tok) {
  * Statement
  */
 
-static Node *read_stmt() {
-    Token *tok = get();
+static Node *read_stmt(parser p) {
+    Token *tok = get_token(p);
     if (tok->kind == TKEYWORD) {
-        switch (tok->id) {
-        case '{':       return read_compound_stmt();
-        case KIF:       return read_if_stmt();
-        case KFOR:      return read_for_stmt();
-        case KWHILE:    return read_while_stmt();
-        case KDO:       return read_do_stmt();
-        case KRETURN:   return read_return_stmt();
-        case KSWITCH:   return read_switch_stmt();
-        case KCASE:     return read_case_label(tok);
-        case KDEFAULT:  return read_default_label(tok);
-        case KBREAK:    return read_break_stmt(tok);
-        case KCONTINUE: return read_continue_stmt(tok);
-        case KGOTO:     return read_goto_stmt();
-        }
+        if (tok->id == intern(sstring("{"))) read_compound_stmt(p);
+        if (tok->id == sym(if)) read_if_stmt(p);
+        if (tok->id == sym(for)) read_for_stmt(p);            
+        if (tok->id == sym(while))    return read_while_stmt(p);
+        if (tok->id == sym(do))       return read_do_stmt(p);
+        if (tok->id == sym(return))   return read_return_stmt(p);
+        if (tok->id == sym(switch))   return read_switch_stmt(p);
+        if (tok->id == sym(case))     return read_case_label(p, tok);
+        if (tok->id == sym(default))  return read_default_label(p, tok);
+        if (tok->id == sym(break))    return read_break_stmt(p, tok);
+        if (tok->id == sym(continue)) return read_continue_stmt(p, tok);
+        if (tok->id == sym(goto))     return read_goto_stmt(p);
     }
-    if (tok->kind == TIDENT && next_token(':'))
+    if ((tok->kind == sym(ident)) && next_token(':'))
         return read_label(tok);
+
+    
     unget_token(tok);
     Node *r = read_expr_opt();
     expect(';');
@@ -2437,7 +2410,7 @@ static void read_decl_or_stmt(vector list) {
  * Compilation unit
  */
 
-vector read_toplevels() {
+vector read_toplevels(parser p) {
     toplevels = allocate_vector(h);
     for (;;) {
         if (peek()->kind == TEOF)
@@ -2457,33 +2430,21 @@ vector read_toplevels() {
 static void concatenate_string(Token *tok) {
     int enc = tok->enc;
     buffer b = make_buffer();
-    buf_append(b, tok->sval, tok->slen - 1);
+    buffer_push(b, tok->sval);
     while (peek()->kind == sym(string)) {
         Token *tok2 = read_token();
         buf_append(b, tok2->sval, tok2->slen - 1);
-        int enc2 = tok2->enc;
-        if (enc != ENC_NONE && enc2 != ENC_NONE && enc != enc2)
-            errort(tok2, "unsupported non-standard concatenation of string literals: %s", tok2s(tok2));
-        if (enc == ENC_NONE)
-            enc = enc2;
     }
-    buf_write(b, '\0');
-    tok->sval = buf_body(b);
-    tok->slen = buf_len(b);
-    tok->enc = enc;
+    tok->sval = b;
 }
 
-static Token *token_get() {
+static Token *token_get(parser p) {
     Token *r = read_token();
     if (r->kind == TINVALID)
         errort(r, "stray character in program: '%c'", r->c);
     if (r->kind == sym(string) && peek()->kind == sym(string))
         concatenate_string(r);
     return r;
-}
-
-static Token *token_peek() {
-    return peek_token();
 }
 
 /*
@@ -2494,7 +2455,7 @@ static void define_builtin(char *name, Type *rettype, vector paramtypes) {
     ast_gvar(make_func_type(rettype, paramtypes, true, false), name);
 }
 
-void parse_init(heap h) {
+parser parse_init(heap h) {
     vector voidptr = make_vector1(make_ptr_type(type_void));
     vector two_voidptrs = allocate_vector(h);
     vector_push(two_voidptrs, make_ptr_type(type_void));

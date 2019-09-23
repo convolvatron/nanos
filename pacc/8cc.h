@@ -49,6 +49,7 @@ typedef struct Node {
     symbol kind;
     Type *ty;
     SourceLoc *sourceLoc;
+    parser p;
     union {
         // Char, int, or long
         long ival;
@@ -138,12 +139,7 @@ void warnf(char *line, char *pos, char *fmt, ...);
 
 // lex.c
 void lex_init(char *filename);
-char *get_base_file(void);
-void skip_cond_incl(void);
-char *read_header_file_name(boolean *std);
 boolean is_keyword(Token *tok, symbol c);
-void token_buffer_stash(vector *buf);
-void token_buffer_unstash();
 void unget_token(Token *tok);
 Token *lex_string(char *s);
 Token *lex(void);
@@ -154,5 +150,5 @@ void *make_pair(void *first, void *second);
 int eval_intexpr(Node *node, Node **addr);
 Node *read_expr(void);
 vector *read_toplevels(void);
-void parse_init(void);
+void parse_init(heap);
 

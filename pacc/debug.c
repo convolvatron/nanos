@@ -2,50 +2,34 @@
 
 #include "8cc.h"
 
-//static string decorate_int(char *name, Type *ty) {
-//    char *u = (ty->usig) ? "u" : "";
-//    if (ty->bitsize > 0)
-//        return aprintf(h, "%s%s:%d:%d", u, name, ty->bitoff, ty->bitoff + ty->bitsize);
-//    return aprintf(h, "%s%s", u, name);
-//}
-
-
 heap transient; // xx -elim
 #define sstring staticbuffer
+
 // just keep this in the type
 static string string_from_type(Type *ty) {
     if (!ty)
         return sstring("(nil)");
-    switch (ty->kind) {
-    case sym(void): return sstring("void");
-        
-    case sym(boolean): return sstring("boolean");
-        // these look suspiciously the same
-    case sym(char): return sstring("char");
-    case sym(short): return sstring("short");
-    case sym(int):  return sstring("int");
-    case sym(long): return sstring("long");
-    case sym(llong): return sstring("llong");
-        
-    case sym(ptr):
+
+    if (ty->kind == sym(ptr))
         return aprintf(transient, "*%s", string_from_type(ty->ptr));
         
-    case sym(array):
+    if (ty->kind == sym(array))                 
         return aprintf(transient, "[%d]%s", ty->len, string_from_type(ty->ptr));
-    // when to refer?
-    case sym(union): {        
-    case sym(struct): {
+    
+    if ((ty->kind == sym(union)) || (ty->kind == sym(struct)))  {
         //        symbol key = intern(aprintf(transient, "%p", ty));
         if (ty->fields) {
             buffer b = allocate_buffer(transient, 10);
-            bprintf(b, "(%s", kind);
+            bprintf(b, "(%s", ty->kind);
+            // ordering of struct entries .. matters semantically
             table_foreach(ty->fields, fkey, ftype) 
                 bprintf(b, " (%s)", string_from_type(ftype));
             bprintf(b, ")");
             return b;
         }
     }
-        case sym(func): {
+    
+    if (ty->kind == sym(func)) {
         buffer b = allocate_buffer(transient, 10);
         bprintf(b, "(");
         if (ty->params) {
@@ -60,27 +44,26 @@ static string string_from_type(Type *ty) {
         bprintf(b, ")=>%s", string_from_type(ty->rettype));
         return b;
     }
-    default:
-        return aprintf(transient, "(Unknown ty: %d)", ty->kind);
-    }
+    return symbol_string(ty->kind);
 }
 
 static void node2s(buffer b, Node *node);
 
-static void uop_to_string(buffer b, symbol op, Node *node) {
+static void uop_to_string(buffer b, symbol op, Node *node)
+{
     bprintf(b, "(%s ", op);
     node2s(b, node->operand);
     bprintf(b, ")");
 }
 
-static void binop_to_string(buffer b, symbol s, Node *node) {
-    bprintf(b, "(%b ", symbol_buffer(s));
+static void binop_to_string(buffer b, symbol s, Node *node)
+{
+    bprintf(b, "(%b ", symbol_string(s));
     node2s(b, node->left);
     bprintf(b, " ");
     node2s(b, node->right);
     bprintf(b, ")");    
 }
-
 
 static void njoin(buffer dest, vector list, char sep)
 {
@@ -97,189 +80,184 @@ static void a2s_declinit(buffer b, vector initlist) {
     njoin(b, initlist, ' ');
 }
 
-static void node2s(buffer b, Node *node) {
-    if (!node) {
+static void node2s(buffer b, Node *n) {
+    if (!n) {
         bprintf(b, "(nil)");
         return;
     }
-    if (get(binops, node->kind)) {
-        binop_to_string(b, node->kind, node);
+    if (get(n->p->binops, n->kind)) {
+        binop_to_string(b, n->kind, n);
     } else {
-        if (get(unops, node->kind)) {
-            uop_to_string(b, node->kind, node);                
+        if (get(n->p->unops, n->kind)) {
+            uop_to_string(b, n->kind, n);                
         } else {
-            switch (node->kind) {
-            case sym(literal):
-                switch (node->ty->kind) {
-                case sym(char):
-                    if (node->ival == '\n')      bprintf(b, "'\n'");
-                    else if (node->ival == '\\') bprintf(b, "'\\\\'");
-                    else if (node->ival == '\0') bprintf(b, "'\\0'");
-                    else bprintf(b, "'%c'", node->ival);
-                    break;
-                case sym(int):
-                    bprintf(b, "%d", node->ival);
-                    break;
-                case sym(long):
-                    bprintf(b, "%ldL", node->ival);
-                    break;
-                case sym(llong):
-                    bprintf(b, "%lldL", node->ival);
-                    break;
-                case sym(array):
-                    bprintf(b, "\"%b\"", node->sval);
-                    break;
-                default:
-                    error("internal error");
+            if (n->kind == sym(literal)) {
+                symbol ntk = n->ty->kind;
+                if (ntk == sym(char)) {                
+                    if (n->ival == '\n')      bprintf(b, "'\n'");
+                    else if (n->ival == '\\') bprintf(b, "'\\\\'");
+                    else if (n->ival == '\0') bprintf(b, "'\\0'");
+                    else bprintf(b, "'%c'", n->ival);
+                    return;
                 }
-                break;
-            case sym(label):
-                bprintf(b, "%s:", node->label);
-                break;
-            case sym(lvar):
-                bprintf(b, "lv=%s", node->varname);
-                if (node->lvarinit) {
+                if ((ntk == sym(int)) ||
+                    (ntk == sym(long)) ||
+                    (ntk == sym(llong))) {
+                    bprintf(b, "%d", n->ival);
+                    return;
+                }
+                if (ntk == sym(array)) {
+                    bprintf(b, "\"%b\"", n->sval);
+                }
+            }
+            if (n->kind == sym(label)) {
+                bprintf(b, "%s:", n->label);
+                return;
+            }
+            if (n->kind ==  sym(lvar)){
+                bprintf(b, "lv=%s", n->varname);
+                if (n->lvarinit) {
                     bprintf(b, "(");
-                    a2s_declinit(b, node->lvarinit);
+                    a2s_declinit(b, n->lvarinit);
                     bprintf(b, ")");
                 }
-                break;
-            case sym(gvar):
-                bprintf(b, "gv=%s", node->varname);
-                break;
-                // xx why are these really so different, isn't this just
-                // an expression?
-            case sym(funcall):
-            case sym(funcptr_call): {
-                bprintf(b, "(%s)",string_from_type(node->ty));
-                if (node->kind == AST_FUNCALL)
-                    buffer_append(b, node->fname->contents, buffer_length(node->fname));
+            }
+            if (n->kind == sym(gvar)) {
+                bprintf(b, "gv=%s", n->varname);
+                return;
+            }
+
+            // xx why are these really so different, isn't this just
+            // an expression?
+            if ((n->kind == sym(funcall)) || (n->kind == sym(funcptr_call))) {
+                bprintf(b, "(%s)",string_from_type(n->ty));
+                if (n->kind == sym(funcall))
+                    buffer_append(b, n->fname->contents, buffer_length(n->fname));
                 else
-                    node2s(b, node);
-                njoin(b, node->args, ',');
+                    node2s(b, n);
+                njoin(b, n->args, ',');
                 bprintf(b, ")");
-                break;
+                return;
             }
-            case sym(funcdesg): {
-                bprintf(b, "(funcdesg %s)", node->fname);
-                break;
+            
+            if (n->kind == sym(funcdesg)) {
+                bprintf(b, "(funcdesg %s)", n->fname);
+                return;
             }
-            case sym(func): {
-                bprintf(b, "(%s)%s(", string_from_type(node->ty), node->fname);
-                njoin(b, node->ty->params, ',');
+            
+            if (n->kind == sym(func)) {
+                bprintf(b, "(%s)%s(", string_from_type(n->ty), n->fname);
+                njoin(b, n->ty->params, ',');
                 bprintf(b, ")");
-                node2s(b, node->body);
-                break;
+                node2s(b, n->body);
+                return;
             }
-            case sym(goto):
-                bprintf(b, "goto(%s)", node->label);
-                break;
-            case sym(decl):
+            if (n->kind ==  sym(goto)) {
+                bprintf(b, "goto(%s)", n->label);
+                return;
+            }
+            
+            if (n->kind ==  sym(decl)){
                 bprintf(b, "(decl %b %b",
-                        string_from_type(node->declvar->ty),
-                        node->declvar->varname);
-                if (node->declinit) {
+                        string_from_type(n->declvar->ty),
+                        n->declvar->varname);
+                if (n->declinit) {
                     bprintf(b, " ");
-                    a2s_declinit(b, node->declinit);
+                    a2s_declinit(b, n->declinit);
                 }
                 bprintf(b, ")");
-                break;
-            case sym(init):
-                node2s(b, node->initval);
+                return;
+            }
+            
+            if (n->kind ==  sym(init)) {
+                node2s(b, n->initval);
                 bprintf(b, "@%d%b", 
-                        node->initoff,
-                        string_from_type(node->totype));
-                break;
-            case sym(conv):
-                // fix
+                        n->initoff,
+                        string_from_type(n->totype));
+                return;
+            }
+
+            if (n->kind ==  sym(conv)) {
                 bprintf(b, "(conv ");
-                node2s(b, node->operand);
-                bprintf(b, " =>%s)", string_from_type(node->ty));
-                break;
-            case sym(if):
+                node2s(b, n->operand);
+                bprintf(b, " =>%s)", string_from_type(n->ty));
+                return;
+            }
+            
+            if (n->kind ==  sym(if)) {
                 bprintf(b, "(if ");
-                node2s(b, node->cond);
+                node2s(b, n->cond);
                 bprintf(b, " ");            
-                node2s(b, node->then);
-                if (node->els) {
+                node2s(b, n->then);
+                if (n->els) {
                     bprintf(b, " ");                 
-                    node2s(b, node->els);
+                    node2s(b, n->els);
                 }
                 bprintf(b, ")");
-                break;
-            case sym(ternary):
+                return;
+            }
+            
+            if (n->kind ==  sym(ternary)) {
                 bprintf(b, "(? ");
-                node2s(b, node->cond),        
+                node2s(b, n->cond),        
                     bprintf(b, " ");
-                node2s(b, node->then),        
+                node2s(b, n->then),        
                     bprintf(b, " ");
-                node2s(b, node->els);        
-                break;
-            case sym(return):
+                node2s(b, n->els);
+                return;
+            }
+
+            if (n->kind ==  sym(return)) {
                 bprintf(b, "(return ");
-                node2s(b, node->retval);
+                node2s(b, n->retval);
                 bprintf(b, ")");
-                break;
-            case sym(compound_stmt): {
+                return;
+            }
+            
+            if (n->kind ==  sym(compound_stmt)) {
                 bprintf(b, "{");
-                njoin(b, node->stmts, ';');                
+                njoin(b, n->stmts, ';');                
                 bprintf(b, "}");
-                break;
+                return;
             }
-            case sym(struct_ref):
-                node2s(b, node->struc);
+            
+            if (n->kind ==  sym(struct_ref)){
+                node2s(b, n->struc);
                 bprintf(b, ".");
-                bprintf(b, node->field);
-                break;
-            case sym(cast): {
+                bprintf(b, n->field);
+                return;
+            }
+            
+            if (n->kind ==  sym(cast)) {
                 bprintf(b, "((%b)=>(%b) ",
-                        string_from_type(node->operand->ty),
-                        string_from_type(node->ty));
-                node2s(b, node->operand);
+                        string_from_type(n->operand->ty),
+                        string_from_type(n->ty));
+                node2s(b, n->operand);
                 bprintf(b, ")");
-                break;
+                return;
             }
-            case sym(label_addr):
-                bprintf(b, "&&%s", node->label);
-                break;
-            default: {
-                if (node->kind == sym(=))
-                    bprintf(b, "(== ");
-                else
-                    bprintf(b, "(%c ", node->kind);
-                node2s(b, node->left);
-                bprintf(b, " ");
-                node2s(b, node->right);
-                bprintf(b, ")");        
+            
+            if (n->kind ==  sym(label_addr)) {
+                bprintf(b, "&&%s", n->label);
+                return;
             }
-            }
+            
+            if (n->kind == sym(=))
+                bprintf(b, "(== ");
+            else
+                bprintf(b, "(%c ", n->kind);
+            node2s(b, n->left);
+            bprintf(b, " ");
+            node2s(b, n->right);
+            bprintf(b, ")");        
         }
     }
 }
 
 string string_from_token(heap h, Token *tok) {
-    if (!tok)
-        return staticbuffer("(null)");
-    switch (tok->kind) {
-    case TIDENT:
-        return tok->sval;
-    case TKEYWORD:
-        return symbol_string(tok->id);
-    case TCHAR:
-        return aprintf(h, "%s'%s'",
-                       encoding_prefix(tok->enc),
-                       quote_char(tok->c));
-    case TNUMBER:
-        return tok->sval;
-    case TSTRING:
-        return tok->sval
-        return b;
-    case TEOF:
-        return "(eof)";
-    case TINVALID:
-        return aprintf("%c", tok->c);
-    case TNEWLINE:
-        return "(newline)";
-    }
-    error("internal error: unknown token kind: %d", tok->kind);
+    if (!tok) return staticbuffer("(null)");
+    if (tok->kind == sym(indent)) return tok->sval;
+    if (tok->kind == sym(keyword)) return symbol_string(tok->id);
+    if (tok->kind == sym(char))  aprintf(h, "'%s'",  tok->c);
+    return tok->sval;
 }
