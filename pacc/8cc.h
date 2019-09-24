@@ -25,6 +25,7 @@ typedef struct Type {
 
 
 typedef struct parse {
+    heap h;
     buffer b;
     tuple globalenv;
     tuple localenv;
@@ -50,16 +51,16 @@ typedef struct parse {
 } *parse;
 
 
-typedef struct {
+typedef struct location {
     buffer file;
     int line;
     int column;
     int start, end;
-} SourceLoc;
+} *location;
 
 typedef struct {
     symbol kind;
-    SourceLoc *s;
+    location s;
     union {
         // TKEYWORD - the same as kind really?
         symbol id;
@@ -74,7 +75,7 @@ typedef struct {
 typedef struct Node {
     symbol kind;
     Type *ty;
-    SourceLoc *sourceLoc;
+    location sourceLoc;
     parse p;
     union {
         // Char, int, or long

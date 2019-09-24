@@ -1,26 +1,5 @@
 // Copyright 2012 Rui Ueyama. Released under the MIT license.
 
-/*
- * Tokenizer
- *
- * This is a translation phase after the phase 1 and 2 in file.c.
- * In this phase, the source code is decomposed into preprocessing tokens.
- *
- * Each comment is treated as if it were a space character.
- * Space characters are removed, but the presence of the characters is
- * recorded to the token that immediately follows the spaces as a boolean flag.
- * Newlines are converted to newline tokens.
- *
- * Note that the pp-token is different from the regular token.
- * A keyword, such as "if", is just an identifier at this stage.
- * The definition of the pp-token is usually more relaxed than
- * the regular one. For example, ".32e." is a valid pp-number.
- * Pp-tokens are converted to regular tokens by the C preprocesor
- * (and invalid tokens are rejected by that).
- * Some tokens are removed by the preprocessor (e.g. newline).
- * For more information about pp-tokens, see C11 6.4 "Lexical Elements".
- */
-
 #include <ctype.h>
 #include <errno.h>
 #include <stdlib.h>
@@ -29,9 +8,9 @@
 
 static Token *eof_token;
 
-SourceLoc *get_pos(int offset);
+location get_pos(int offset);
 
-static buffer pos_string(heap h, SourceLoc *s) {
+static buffer pos_string(heap h, location s) {
     //    File *f = current_file();
     return aprintf(h, "%d:%d", s->line, s->column);
 }
@@ -39,7 +18,7 @@ static buffer pos_string(heap h, SourceLoc *s) {
 #define errorp(p, ...) 
 #define warnp(p, ...)  
 
-static Token *make_token(heap h, SourceLoc *s, Token *tmpl) {
+static Token *make_token(heap h, location s, Token *tmpl) {
     Token *r = allocate(h, sizeof(Token));
     *r = *tmpl;
     r->s = s;
@@ -50,15 +29,15 @@ static Token *make_ident(heap h, buffer b) {
     return make_token(h, 0, &(Token){ sym(ident), .sval = b });
 }
 
-static Token *make_keyword(heap h, SourcePos f, symbol id) {
+static Token *make_keyword(heap h, location f, symbol id) {
     return make_token(h, f, &(Token){ sym(keyword), .id = id });
 }
 
-static Token *make_number(heap h, SourcePos f, buffer s) {
+static Token *make_number(heap h, location f, buffer s) {
     return make_token(h, f, &(Token){ sym(number), .sval = s });
 }
 
-static Token *make_char(heap h, SourcePos f, int c) {
+static Token *make_char(heap h, location f, int c) {
     return make_token(h, f, &(Token){ sym(char), .c = c});
 }
 
@@ -87,12 +66,13 @@ static boolean do_skip_space(buffer b) {
     if (iswhitespace(c)) return true;
     if (c == '/') {
         if (next(b, '*')) {
-            // SourceLoc *p = get_pos(-2);
+            // location p = get_pos(-2);
             boolean maybe_end = false;
             for (;;) {
                 if (buffer_length(b) == 0)
                     errorp(p, "premature end of block comment");
                 int c = readc(b);
+                b->start++;                
                 if (c == '/' && maybe_end)
                     return true;
                 maybe_end = (c == '*');
@@ -105,14 +85,13 @@ static boolean do_skip_space(buffer b) {
                 int c = readc(b);
                 // keep going
                 if (c == '\n') {
-                    unreadc(c);
                     return true;
                 }
+                b->start++;
             }            
             return true;
         }
     }
-    unreadc(c);
     return false;
 }
 
@@ -156,42 +135,35 @@ static boolean nextoct(buffer b) {
 // Reads an octal escape sequence.
 static int read_octal_char(buffer b, int c) {
     int r = c - '0';
-    if (!nextoct())
+    if (!nextoct(b))
         return r;
     r = (r << 3) | (readc(b) - '0');
-    if (!nextoct())
+    if (!nextoct(b))
         return r;
     return (r << 3) | (readc(b) - '0');
 }
 
 // Reads a \x escape sequence.
 static int read_hex_char(buffer b) {
-    SourceLoc *p = get_pos(-2);
+    location p = get_pos(-2);
     int c = readc(b);
     if (!isxdigit(c))
         errorp(p, "\\x is not followed by a hexadecimal character: %c", c);
     int r = 0;
     for (;; c = readc(b)) {
         switch (c) {
-        case '0' ... '9': r = (r << 4) | (c - '0'); continue;
-        case 'a' ... 'f': r = (r << 4) | (c - 'a' + 10); continue;
-        case 'A' ... 'F': r = (r << 4) | (c - 'A' + 10); continue;
-        default: unreadc(c); return r;
+        case '0' ... '9': r = (r << 4) | (c - '0'); b->start++;continue;
+        case 'a' ... 'f': r = (r << 4) | (c - 'a' + 10);b->start++; continue;
+        case 'A' ... 'F': r = (r << 4) | (c - 'A' + 10);b->start++; continue;
+        default: return r;
         }
     }
 }
 
 static int read_escaped_char(buffer b) {
-    SourceLoc *p = get_pos(-1);
+    location p = get_pos(-1);
     int c = readc(b);
-    // This switch-cases is an interesting example of magical aspects
-    // of self-hosting compilers. Here, we teach the compiler about
-    // escaped sequences using escaped sequences themselves.
-    // This is a tautology. The information about their real character
-    // codes is not present in the source code but propagated from
-    // a compiler compiling the source code.
-    // See "Reflections on Trusting Trust" by Ken Thompson for more info.
-    // http://cm.bell-labs.com/who/ken/trust.html
+
     switch (c) {
     case '\'': case '"': case '?': case '\\':
         return c;
@@ -213,7 +185,7 @@ static int read_escaped_char(buffer b) {
 static Token *read_char(buffer b) {
     int c = readc(b);
     int r = (c == '\\') ? read_escaped_char(b) : c;
-    c = readc();
+    c = readc(b);
     if (c != '\'')
         errorp(pos, "unterminated char");
     return make_char(transient, b, r);
@@ -261,9 +233,10 @@ static Token *read_hash_digraph(buffer b) {
         return make_keyword('}');
     if (next(b, ':')) {
         if (next(b, '%')) {
-            if (next(b, ':'))
+            if (next(b, ':')) {
+                b->start++;
                 return make_keyword(KHASHHASH);
-            unreadc('%');
+            }
         }
         return make_keyword('#');
     }
@@ -274,7 +247,7 @@ static Token *read_rep(char expect, int t1, int els) {
     return make_keyword(next(b, expect) ? t1 : els);
 }
 
-static Token *read_rep2(char expect1, int t1, char expect2, int t2, char els) {
+static Token *read_rep2(buffer b, char expect1, int t1, char expect2, int t2, char els) {
     if (next(b, expect1))
         return make_keyword(t1);
     return make_keyword(next(b, expect2) ? t2 : els);
@@ -342,10 +315,9 @@ static Token *do_read_token(buffer b) {
     }
 }
 
-boolean is_keyword(Token *tok, int c) {
+boolean is_keyword(Token *tok, symbol c) {
     return (tok->kind == sym(keyword)) && (tok->id == c);
 }
-
 
 void init_token()
 {

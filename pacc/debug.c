@@ -224,7 +224,7 @@ static void node2s(buffer b, Node *n) {
             if (n->kind ==  sym(struct_ref)){
                 node2s(b, n->struc);
                 bprintf(b, ".");
-                bprintf(b, n->field);
+                push_buffer(b, n->field);
                 return;
             }
             
