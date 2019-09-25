@@ -9,6 +9,11 @@ string symbol_string(symbol s);
 #define sym(name)\
     ({static symbol __s = 0;\
       if (!__s){char x[] = #name; __s = intern(alloca_wrap_buffer(x, sizeof(x)-1));} \
+     __s;})
+
+#define symq(name)\
+    ({static symbol __s = 0;\
+      if (!__s){char x[] = name; __s = intern(alloca_wrap_buffer(x, sizeof(x)-1));} \
      __s;})              
 
 #define sym_this(name)\

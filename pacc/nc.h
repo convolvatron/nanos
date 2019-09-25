@@ -27,21 +27,25 @@ typedef struct Type {
 typedef struct parse {
     heap h;
     buffer b;
+
+    // umm
     tuple globalenv;
     tuple localenv;
     tuple tags;
     tuple labels;
     tuple types;
-    
+
+
     vector toplevels;
     vector localvars;
     vector gotos; // ehh
     vector cases;
     Type *current_func_type;
-    
-    char *defaultcase;
-    char *lbreak;
-    char *lcontinue;
+
+    // should be Node?
+    buffer defaultcase;
+    buffer lbreak;
+    buffer lcontinue;
     
     Type *type_void, *type_bool, *type_char, *type_short, *type_int;
     Type  *type_long, *type_llong, *type_uchar, *type_ushort, *type_uint;
@@ -182,6 +186,6 @@ Token *lex(void);
 boolean is_inttype(Type *ty);
 void *make_pair(heap h, void *first, void *second);
 int eval_intexpr(Node *node, Node **addr);
-vector *read_toplevels(void);
-void parse_init(heap);
+vector read_toplevels(parse);
+parse parse_init(heap);
 

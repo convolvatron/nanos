@@ -69,7 +69,7 @@ static Node *ast_binop(parse p, Type *ty, symbol kind, Node *left, Node *right) 
     return r;
 }
 
-static Node *ast_inttype(Type *ty, long val) {
+static Node *ast_inttype(parse p, Type *ty, long val) {
     return make_ast(&(Node){ sym(literal), ty, .ival = val }, 0);
 }
 
@@ -214,7 +214,7 @@ static Node *ast_dest(buffer label) {
 
 
 static Type* make_ptr_type(Type *ty) {
-    return make_type(&(Type){ sym(ptr), .ptr = ty, .size = 8, .align = 8 }, 0);
+    return make_type(&(Type){ sym(ptr), .ptr = ty, .size = 8, .align = 8 });
 }
 
 static Node *ast_label_addr(parse p, buffer label) {
@@ -246,7 +246,7 @@ static Type *make_numtype(symbol kind, boolean usig) {
 
 
 static Type* make_rectype() {
-
+    return 0; 
 }
 
 static Type* make_func_type(Type *rettype, vector paramtypes, boolean has_varargs) {
@@ -325,7 +325,9 @@ static boolean is_type(parse p, Token *tok)
         return get_typedef(p, tok->sval)?true:false;
     if (tok->kind != sym(keyword))
         return false;
-    // all the standard types were pulled in with redefining op    
+    // all the standard types were pulled in with redefining op
+    // typespace
+    return false;
 }
 
 static boolean next_token(parse p, symbol kind) {
@@ -423,8 +425,8 @@ static Node *binop(parse p, symbol op, Node *lhs, Node *rhs) {
         return ast_binop(p, lhs->ty, op, lhs, rhs);
     if (rhs->ty->kind == sym(ptr))
         return ast_binop(p, rhs->ty, op, rhs, lhs);
-    assert(is_inttype(p, lhs->ty));
-    assert(is_inttype(p, rhs->ty));
+    assert(is_inttype(lhs->ty));
+    assert(is_inttype(rhs->ty));
     Type *r = usual_arith_conv(p, lhs->ty, rhs->ty);
     return ast_binop(p, r, op, wrap(r, lhs), wrap(r, rhs));
 }
@@ -491,6 +493,7 @@ static buffer read_rectype_tag(parse p) {
 
 static int read_intexpr(parse p) {
     // xxx - we were doing static evaluation here...pass through
+    return 0;
 }
 
 static Type *read_enum_def(parse p) {
@@ -528,7 +531,7 @@ static Type *read_enum_def(parse p) {
 
         if (next_token(p, sym(=)))
             val = read_intexpr(p);
-        Node *constval = ast_inttype(p->type_int, val++);
+        Node *constval = ast_inttype(p, p->type_int, val++);
         // ?
         set(p->globalenv, name, constval);
         if (next_token(p, sym(intern(sstring","))))
@@ -726,7 +729,7 @@ static Type *read_rectype_def(parse p, symbol kind) {
         r =  make_type(&(Type){ kind});            
     }
     int size = 0, align = 1;
-    vector fields = read_rectype_fields(p, &size, &align, kind);
+    vector fields = read_rectype_fields(p, &size, &align);
     r->align = align;
     if (fields) {
         r->fields = fields;
@@ -739,7 +742,7 @@ static Type *read_rectype_def(parse p, symbol kind) {
 static int read_bitsize(parse p, buffer name, Type *ty) {
     if (!is_inttype(ty))
         error("non-integer type cannot be a bitfield: %s", ty2s(ty));
-    Token *tok = token(p);
+    consume(p);
     int r = read_intexpr(p);
     int maxsize = ty->kind == sym(boolean) ? 1 : ty->size * 8;
     if (r < 0 || maxsize < r)
@@ -761,7 +764,7 @@ static vector read_rectype_fields_sub(parse p) {
         }
         for (;;) {
             buffer name = NULL;
-            Type *fieldtype = read_declarator(&name, basetype, NULL, DECL_PARAM_TYPEONLY);
+            Type *fieldtype = read_declarator(p, &name, basetype, NULL, DECL_PARAM_TYPEONLY);
             ensure_not_void(fieldtype);
             fieldtype = copy_type(fieldtype);
             fieldtype->bitsize = next_token(p, colon) ? read_bitsize(p, name, fieldtype) : -1;
@@ -805,14 +808,14 @@ static Node *read_sizeof_operand(parse p) {
     // Sizeof on void or function type is GNU extension
     int size = (ty->kind == sym(void) || ty->kind == sym(func)) ? 1 : ty->size;
     assert(0 <= size);
-    return ast_inttype(p->type_ulong, size);
+    return ast_inttype(p, p->type_ulong, size);
 }
 
 static Node *read_alignof_operand(parse p) {
     expect(p, open_paren);
     Type *ty = read_cast_type(p);
     expect(p, close_paren);
-    return ast_inttype(p->type_ulong, ty->align);
+    return ast_inttype(p, p->type_ulong, ty->align);
 }
 
 static vector read_func_args(parse p,  vector params) {
@@ -875,6 +878,10 @@ static symbol get_compound_assign_op(Token *tok) {
 static Node *read_compound_stmt(parse p);
 static Node *read_stmt(parse p);
 
+static Node *vector_tail(vector r)
+{
+}
+
 
 static Node *read_stmt_expr(parse p) {
     Node *r = read_compound_stmt(p);
@@ -916,7 +923,7 @@ static Node *read_primary_expr(parse p) {
     //    if (tok->kind == sym(number))     
     //        return read_int(p, tok);
     if (tok->kind == sym(char))         
-        return ast_inttype(p, p->char_type, tok->c);
+        return ast_inttype(p, p->type_char, tok->c);
     if (tok->kind == sym(string))             
         return ast_string(p, tok->sval);
 
@@ -954,7 +961,7 @@ static Node *read_postfix_expr_tail(parse p, Node *node) {
             continue;
         }
         if (next_token(p, sym(.))) {
-            node = read_struct_field(node);
+            node = read_struct_field(p, node);
             continue;
         }
         if (next_token(p, sym(->))) {
@@ -962,7 +969,7 @@ static Node *read_postfix_expr_tail(parse p, Node *node) {
                 error("pointer type expected, but got %s %s",
                       ty2s(node->ty), node2s(node));
             node = ast_uop(sym(deref), node->ty->ptr, node);
-            node = read_struct_field(node);
+            node = read_struct_field(p, node);
             continue;
         }
         Token *tok = token(p);
@@ -1020,7 +1027,7 @@ static Node *read_unary_deref(parse p, Token *tok) {
 static Node *read_unary_minus(parse p) {
     Node *expr = read_cast_expr(p);
     ensure_inttype(expr);
-    return binop(p, sym(-), conv(ast_inttype(expr->ty, 0)), conv(expr));
+    return binop(p, sym(-), conv(ast_inttype(p, expr->ty, 0)), conv(expr));
 }
 
 static Node *read_unary_bitnot(parse p, Token *tok) {
@@ -1069,9 +1076,9 @@ static void assign_string(parse p, vector inits, Type *ty, buffer s, int off) {
         ty->len = ty->size = buffer_length(s);
     int i = 0;
     for (; i < ty->len && *p; i++)
-        vector_push(inits, ast_init(ast_inttype(p->type_char, *p++), p->type_char, off + i));
+        vector_push(inits, ast_init(ast_inttype(p, p->type_char, *p++), p->type_char, off + i));
     for (; i < ty->len; i++)
-        vector_push(inits, ast_init(ast_inttype(p->type_char, 0), p->type_char, off + i));
+        vector_push(inits, ast_init(ast_inttype(p, p->type_char, 0), p->type_char, off + i));
 }
 #endif
 
@@ -1143,8 +1150,7 @@ static void read_array_initializer(parse p, vector inits, Type *ty, int off, boo
 
 static void read_struct_initializer(parse p, vector inits, Type *ty, int off, boolean designated) {
     boolean has_brace = maybe_read_brace(p);
-    vector keys = dict_keys(ty->fields);
-    int i = 0;
+    // guess the problem here is implicit field names?
     for (;;) {
         Token *tok = token(p);
         if (is_keyword(tok, close_brace)) {
@@ -1167,20 +1173,14 @@ static void read_struct_initializer(parse p, vector inits, Type *ty, int off, bo
             fieldtype = get(ty->fields, fieldname);
             if (!fieldtype)
                 errort(tok, "field does not exist: %s", tok2s(tok));
-            keys = dict_keys(ty->fields);
-            i = 0;
-            while (i < vector_length(keys)) {
-                buffer s = vector_get(keys, i++);
-                if (buffer_compare(s, fieldname))
-                    break;
-            }
             designated = true;
             consume(p);
         } else {
-            if (i == vector_length(keys))
-                break;
-            fieldname = vector_get(keys, i++);
-            fieldtype = lookup_field(ty, intern(fieldname));
+            // hmm?
+            //            if (i == vector_length(keys))
+            //                break;
+            //            fieldname = vector_get(keys, i++);
+            //            fieldtype = lookup_field(ty, intern(fieldname));
         }
         read_initializer_elem(p, inits, fieldtype, off + fieldtype->offset, designated);
         maybe_skip_comma(p);
@@ -1490,7 +1490,7 @@ static Type *read_func_param_list(parse p, vector paramvars, Type *rettype) {
         return make_func_type(rettype, allocate_vector(p->h, 10), true);
     //    unget_token(tok);
 
-    Token *tok2 = token(p);
+    consume(p);
     if (next_token(p, sym(...)))
         errort(tok2, "at least one parameter is required before \"...\"");
     if (is_type(p, token(p))) {
@@ -1517,7 +1517,7 @@ static Type *read_declarator_array(parse p, Type *basety) {
         len = read_intexpr(p);
         expect(p, close_brace);
     }
-    Token *tok = token(p);
+    consume(p);
     Type *t = read_declarator_tail(p, basety, NULL);
     if (t->kind == sym(func))
         errort(tok, "array of functions");
@@ -1761,34 +1761,30 @@ static Node *read_opt_decl_or_stmt(parse p) {
     return ast_compound_stmt(list);
 }
 
-#define SET_JUMP_LABELS(cont, brk)              \
-    buffer ocontinue = lcontinue;                \
-    buffer obreak = lbreak;                      \
-    lcontinue = cont;                           \
-    lbreak = brk
+static void push_scope(parse p)
+{
+}
 
-#define RESTORE_JUMP_LABELS()                   \
-    lcontinue = ocontinue;                      \
-    lbreak = obreak
+static void pop_scope(parse p)
+{
+}
+
 
 static Node *read_for_stmt(parse p) {
     expect(p, open_paren);
     buffer beg = make_label();
     buffer mid = make_label();
     buffer end = make_label();
-    tuple orig = p->localenv;
-    p->localenv = make_map_parent(p->localenv);
+    push_scope(p);    
     Node *init = read_opt_decl_or_stmt(p);
     Node *cond = read_comma_expr(p);
     expect(p, semicolon);
     Node *step = read_comma_expr(p);
     expect(p, close_paren);
-    SET_JUMP_LABELS(mid, end);
     Node *body = read_stmt(p);
-    RESTORE_JUMP_LABELS();
-    localenv = orig;
+    pop_scope(p);
 
-    vector v = allocate_vector(h);
+    vector v = allocate_vector(p->h, 10);
     if (init)
         vector_push(v, init);
     vector_push(v, ast_dest(beg));
@@ -1806,17 +1802,18 @@ static Node *read_for_stmt(parse p) {
 
 
 static Node *read_while_stmt(parse p) {
-    expect(open_paren);
-    Node *cond = read_boolean_expr();
-    expect(close_paren);
+    expect(p, open_paren);
+    Node *cond = read_boolean_expr(p);
+    expect(p, close_paren);
 
     buffer beg = make_label();
     buffer end = make_label();
-    SET_JUMP_LABELS(beg, end);
+    push_scope(p);
+    //     SET_JUMP_LABELS(beg, end);
     Node *body = read_stmt(p);
-    RESTORE_JUMP_LABELS();
+    pop_scope(p);    
 
-    vector v = allocate_vector(h);
+    vector v = allocate_vector(p->h, 10);
     vector_push(v, ast_dest(beg));
     vector_push(v, ast_if(cond, body, ast_jump(end)));
     vector_push(v, ast_jump(beg));
@@ -1827,18 +1824,18 @@ static Node *read_while_stmt(parse p) {
 static Node *read_do_stmt(parse p) {
     buffer beg = make_label();
     buffer end = make_label();
-    SET_JUMP_LABELS(beg, end);
+    push_scope(p);
     Node *body = read_stmt(p);
-    RESTORE_JUMP_LABELS();
-    Token *tok = get();
-    if (!is_keyword(tok, KWHILE))
+    pop_scope(p);
+    Token *tok = token(p);
+    if (!is_keyword(tok, sym(while)))
         errort(tok, "'while' is expected, but got %s", tok2s(tok));
-    expect(open_paren);
-    Node *cond = read_boolean_expr();
-    expect(close_paren);
-    expect(';');
+    expect(p, open_paren);
+    Node *cond = read_boolean_expr(p);
+    expect(p, close_paren);
+    expect(p, semicolon);
 
-    vector v = allocate_vector(h);
+    vector v = allocate_vector(p->h, 10);
     vector_push(v, ast_dest(beg));
     if (body)
         vector_push(v, body);
@@ -1847,22 +1844,22 @@ static Node *read_do_stmt(parse p) {
     return ast_compound_stmt(v);
 }
 
-static Node *make_switch_jump(Node *var, Case *c) {
+static Node *make_switch_jump(parse p, Node *var, Case *c) {
     Node *cond;
     if (c->beg == c->end) {
-        cond = ast_binop(type_int, OP_EQ, var, ast_inttype(type_int, c->beg));
+        cond = ast_binop(p, p->type_int, sym(=), var, ast_inttype(p, p->type_int, c->beg));
     } else {
         // [GNU] case i ... j is compiled to if (i <= cond && cond <= j) goto <label>.
-        Node *x = ast_binop(type_int, sym(<=), ast_inttype(type_int, c->beg), var);
-        Node *y = ast_binop(type_int, sym(<=), var, ast_inttype(type_int, c->end));
-        cond = ast_binop(type_int, sym(logand), x, y);
+        Node *x = ast_binop(p, p->type_int, sym(<=), ast_inttype(p, p->type_int, c->beg), var);
+        Node *y = ast_binop(p, p->type_int, sym(<=), var, ast_inttype(p, p->type_int, c->end));
+        cond = ast_binop(p, p->type_int, sym(logand), x, y);
     }
     return ast_if(cond, ast_jump(c->label), NULL);
 }
 
 // C11 6.8.4.2p3: No two case constant expressions have the same value.
 static void check_case_duplicates(vector cases) {
-    int len = vector_len(cases);
+    int len = vector_length(cases);
     Case *x = vector_get(cases, len - 1);
     for (int i = 0; i < len - 1; i++) {
         Case *y = vector_get(cases, i);
@@ -1873,22 +1870,6 @@ static void check_case_duplicates(vector cases) {
         error("duplicate case value: %d ... %d", x->beg, x->end);
     }
 }
-
-// this is only two levels deep in the original code?
-
-#define SET_SWITCH_CONTEXT(p, brk)             \
-    p->ocases = p->cases;                      \
-    p->odefaultcase = p->defaultcase;          \
-    p->obreak = p->break;                      \
-    p->cases = p->allocate_vector(h);          \
-    p->defaultcase = NULL;                     \
-    p->lbreak = brk
-
-#define RESTORE_SWITCH_CONTEXT(p)              \
-    p->cases = p->ocases;                      \
-    p->defaultcase = p->odefaultcase;          \
-    p->lbreak = p->obreak
-
 static Node *read_switch_stmt(parse p)
 {
     expect(p, open_paren);
@@ -1897,24 +1878,25 @@ static Node *read_switch_stmt(parse p)
     expect(p, close_paren);
 
     buffer end = make_label();
-    SET_SWITCH_CONTEXT(p, end);
+    //    SET_SWITCH_CONTEXT(p, end);
+    push_scope(p);
     Node *body = read_stmt(p);
-    vector v = allocate_vector(h);
-    Node *var = ast_lvar(expr->ty, make_tempname());
-    vector_push(v, ast_binop(expr->ty, '=', var, expr));
-    for (int i = 0; i < vector_len(cases); i++)
-        vector_push(v, make_switch_jump(var, vector_get(cases, i)));
-    vector_push(v, ast_jump(defaultcase ? defaultcase : end));
+    vector v = allocate_vector(p->h, 10);
+    Node *var = ast_lvar(p, expr->ty, make_tempname());
+    vector_push(v, ast_binop(p, expr->ty, sym(=), var, expr));
+    for (int i = 0; i < vector_length(p->cases); i++)
+        vector_push(v, make_switch_jump(p, var, vector_get(p->cases, i)));
+    vector_push(v, ast_jump(p->defaultcase ? p->defaultcase : end));
     if (body)
         vector_push(v, body);
     vector_push(v, ast_dest(end));
-    RESTORE_SWITCH_CONTEXT(p);
+    pop_scope(p);    
     return ast_compound_stmt(v);
 }
 
-static Node *read_label_tail(Node *label) {
+static Node *read_label_tail(parse p, Node *label) {
     Node *stmt = read_stmt(p);
-    vector v = allocate_vector(h);
+    vector v = allocate_vector(p->h, 10);
     vector_push(v, label);
     if (stmt)
         vector_push(v, stmt);
@@ -1922,86 +1904,86 @@ static Node *read_label_tail(Node *label) {
 }
 
 static Node *read_case_label(parse p, Token *tok) {
-    if (!cases)
+    if (!p->cases)
         errort(tok, "stray case label");
     buffer label = make_label();
     int beg = read_intexpr(p);
-    if (next_token(KELLIPSIS)) {
+    if (next_token(p, sym(...))) {
         int end = read_intexpr(p);
-        expect(':');
+        expect(p, colon);
         if (beg > end)
             errort(tok, "case region is not in correct order: %d ... %d", beg, end);
-        vector_push(cases, make_case(beg, end, label));
+        vector_push(p->cases, make_case(beg, end, label));
     } else {
-        expect(':');
-        vector_push(cases, make_case(beg, beg, label));
+        expect(p, colon);
+        vector_push(p->cases, make_case(beg, beg, label));
     }
-    check_case_duplicates(cases);
-    return read_label_tail(ast_dest(label));
+    check_case_duplicates(p->cases);
+    return read_label_tail(p, ast_dest(label));
 }
 
 static Node *read_default_label(parse p, Token *tok) {
-    expect(':');
-    if (defaultcase)
+    expect(p, colon);
+    if (p->defaultcase)
         errort(tok, "duplicate default");
-    defaultcase = make_label();
-    return read_label_tail(ast_dest(defaultcase));
+    p->defaultcase = make_label();
+    return read_label_tail(p, ast_dest(p->defaultcase));
 }
 
 static Node *read_break_stmt(parse p, Token *tok) {
-    expect(';');
-    if (!lbreak)
+    expect(p, semicolon);
+    if (!p->lbreak)
         errort(tok, "stray break statement");
-    return ast_jump(lbreak);
+    return ast_jump(p->lbreak);
 }
 
 static Node *read_continue_stmt(parse p, Token *tok) {
-    expect(';');
-    if (!lcontinue)
+    expect(p, semicolon);
+    if (!p->lcontinue)
         errort(tok, "stray continue statement");
-    return ast_jump(lcontinue);
+    return ast_jump(p->lcontinue);
 }
 
 static Node *read_return_stmt(parse p) {
     Node *retval = read_comma_expr(p);
-    expect(';');
+    expect(p, semicolon);
     if (retval)
-        return ast_return(ast_conv(current_func_type->rettype, retval));
+        return ast_return(ast_conv(p->current_func_type->rettype, retval));
     return ast_return(NULL);
 }
 
 static Node *read_goto_stmt(parse p) {
-    if (next_token('*')) {
+    if (next_token(p, sym(*))) {
         // [GNU] computed goto. "goto *p" jumps to the address pointed by p.
-        Token *tok = peek();
-        Node *expr = read_cast_expr();
+        consume(p);
+        Node *expr = read_cast_expr(p);
         if (expr->ty->kind != sym(ptr))
             errort(tok, "pointer expected for computed goto, but got %s", node2s(expr));
         return ast_computed_goto(expr);
     }
-    Token *tok = get();
+    Token *tok = token(p);
     if (!tok || tok->kind != sym(ident))
         errort(tok, "identifier expected, but got %s", tok2s(tok));
-    expect(';');
+    expect(p, semicolon);
     Node *r = ast_goto(tok->sval);
-    vector_push(gotos, r);
+    vector_push(p->gotos, r);
     return r;
 }
 
-static Node *read_label(Token *tok)
+static Node *read_label(parse p, Token *tok)
 {
     buffer label = tok->sval;
-    if (get(labels, label))
+    if (get(p->labels, label))
         errort(tok, "duplicate label: %s", tok2s(tok));
     Node *r = ast_label(label);
-    set(labels, label, r);
-    return read_label_tail(r);
+    set(p->labels, label, r);
+    return read_label_tail(p, r);
 }
 
 static Node *read_stmt(parse p) {
     Token *tok = token(p);
     if (tok->kind == sym(keyword)) {
-        if (tok->id == intern(sstring("{"))) read_compound_stmt(p);
+        if (tok->id == open_brace) read_compound_stmt(p);
         if (tok->id == sym(if)) read_if_stmt(p);
         if (tok->id == sym(for)) read_for_stmt(p);            
         if (tok->id == sym(while))    return read_while_stmt(p);
@@ -2014,95 +1996,95 @@ static Node *read_stmt(parse p) {
         if (tok->id == sym(continue)) return read_continue_stmt(p, tok);
         if (tok->id == sym(goto))     return read_goto_stmt(p);
     }
-    if ((tok->kind == sym(ident)) && next_token(':'))
-        return read_label(tok);
+    if ((tok->kind == sym(ident)) && next_token(p, colon))
+        return read_label(p, tok);
     
-    unget_token(tok);
+    //    unget_token(tok);
     Node *r = read_comma_expr(p);
-    expect(';');
+    expect(p, semicolon);
     return r;
 }
 
-static Node *read_compound_stmt() {
-    tuple *orig = localenv;
-    localenv = make_map_parent(localenv);
-    vector list = allocate_vector(h);
+static Node *read_compound_stmt(parse p) {
+    push_scope(p);
+    vector list = allocate_vector(p->h, 10);
     for (;;) {
-        if (next_token('}'))
+        if (next_token(p, close_brace))
             break;
-        read_decl_or_stmt(list);
+        read_decl_or_stmt(p, list);
     }
-    localenv = orig;
+    pop_scope(p);
     return ast_compound_stmt(list);
 }
 
 
 vector read_toplevels(parse p) {
-    toplevels = allocate_vector(p->h, 10);
+    p->toplevels = allocate_vector(p->h, 10);
     for (;;) {
-        if (peek()->kind == sym(eof))
-            return toplevels;
+        if (token(p)->kind == sym(eof))
+            return p->toplevels;
         if (is_funcdef(p))
-            vector_push(toplevels, read_funcdef());
+            vector_push(p->toplevels, read_funcdef(p));
         else
-            read_decl(toplevels, true);
+            read_decl(p, p->toplevels, true);
     }
 }
 
 // C11 5.1.1.2p6 Adjacent string literal tokens are concatenated.
 static void concatenate_string(parse p, Token *tok) {
-    int enc = tok->enc;
-    buffer b = make_buffer();
-    buffer_push(b, tok->sval);
+    buffer b = allocate_buffer(p->h, 10);
+    push_buffer(b, tok->sval);
     while (token(p)->kind == sym(string)) {
-        Token *tok2 = read_token();
-        buf_append(b, tok2->sval, tok2->slen - 1);
+        Token *tok2 = token(p);
+        push_buffer(b, tok2->sval);
     }
     tok->sval = b;
 }
 
 static Token *token_get(parse p) {
-    Token *r = read_token();
-    if (r->kind == TINVALID)
+    Token *r = token(p);
+    if (r->kind == sym(invalid))
         errort(r, "stray character in program: '%c'", r->c);
-    if (r->kind == sym(string) && peek()->kind == sym(string))
-        concatenate_string(r);
+    if (r->kind == sym(string) && token(p)->kind == sym(string))
+        concatenate_string(p, r);
     return r;
 }
 
-static void define_builtin(buffer name, Type *rettype, vector paramtypes) {
-    ast_gvar(make_func_type(rettype, paramtypes, true, false), name);
+static void define_builtin(parse p, buffer name, Type *rettype, vector paramtypes) {
+    ast_gvar(p, make_func_type(rettype, paramtypes, false), name);
 }
 
 parse parse_init(heap h) {
-    vector voidptr = make_vector1(make_ptr_type(type_void));
-    vector two_voidptrs = allocate_vector(h);
-    vector_push(two_voidptrs, make_ptr_type(type_void));
-    vector_push(two_voidptrs, make_ptr_type(type_void));
-    define_builtin("__builtin_return_address", make_ptr_type(type_void), voidptr);
-    define_builtin("__builtin_reg_class", type_int, voidptr);
-    define_builtin("__builtin_va_arg", type_void, two_voidptrs);
-    define_builtin("__builtin_va_start", type_void, voidptr);
-    type_void = &(Type){ sym(void), 0, 0, false };
-    type_bool = &(Type){ sym(boolean), 1, 1, true };
-    type_char = &(Type){ sym(char), 1, 1, false };
-    type_short = &(Type){ sym(short), 2, 2, false };
-    type_int = &(Type){ sym(int), 4, 4, false };
-    type_long = &(Type){ sym(long), 8, 8, false };
-    type_llong = &(Type){ sym(llong), 8, 8, false };
-    type_uchar = &(Type){ sym(char), 1, 1, true };
-    type_ushort = &(Type){ sym(short), 2, 2, true };
-    type_uint = &(Type){ sym(int), 4, 4, true };
-    type_ulong = &(Type){ sym(long), 8, 8, true };
-    type_ullong = &(Type){ sym(llong), 8, 8, true };
-    type_enum = &(Type){ sym(enum), 4, 4, false };
-    open_paren = intern(sstring("("))
-    close_paren = intern(sstring(")"));
-    open_brace = intern(sstring("{"))        
-    close_brace = intern(sstring("}"));
-    open_bracket = intern(sstring("["))        
-    close_bracket = intern(sstring("]"));    
-    comma = intern(sstring(","))
-    semicolon = intern(sstring(";"))
-    colon = intern(sstring(":"))                        
+    parse p = allocate(h, sizeof(struct parse));
+    p->type_void = &(Type){ sym(void), 0, 0, false };    
+    Type *v = make_ptr_type(p->type_void);
+    vector voidptr = build_vector(h, v);
+    vector two_voidptrs = build_vector(h, v, v);
+
+    p->type_bool = &(Type){ sym(boolean), 1, 1, true };
+    p->type_char = &(Type){ sym(char), 1, 1, false };
+    p->type_short = &(Type){ sym(short), 2, 2, false };
+    p->type_int = &(Type){ sym(int), 4, 4, false };
+    p->type_long = &(Type){ sym(long), 8, 8, false };
+    p->type_llong = &(Type){ sym(llong), 8, 8, false };
+    p->type_uchar = &(Type){ sym(char), 1, 1, true };
+    p->type_ushort = &(Type){ sym(short), 2, 2, true };
+    p->type_uint = &(Type){ sym(int), 4, 4, true };
+    p->type_ulong = &(Type){ sym(long), 8, 8, true };
+    p->type_ullong = &(Type){ sym(llong), 8, 8, true };
+    p->type_enum = &(Type){ sym(enum), 4, 4, false };
+    open_paren = intern(staticbuffer("("));
+    close_paren = intern(staticbuffer(")"));
+    open_brace = intern(staticbuffer("{"));        
+    close_brace = intern(staticbuffer("}"));
+    open_bracket = intern(staticbuffer("["));
+    close_bracket = intern(staticbuffer("]"));    
+    comma = intern(staticbuffer(","));
+    semicolon = intern(staticbuffer(";"));
+    colon = intern(staticbuffer(":"));
+
+    define_builtin(p, staticbuffer("__builtin_return_address"), v, voidptr);
+    define_builtin(p, staticbuffer("__builtin_reg_class"), p->type_int, voidptr);
+    define_builtin(p, staticbuffer("__builtin_va_arg"), p->type_void, two_voidptrs);
+    define_builtin(p, staticbuffer("__builtin_va_start"), p->type_void, voidptr);        
 }

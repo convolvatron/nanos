@@ -210,18 +210,17 @@ static Token *read_string(buffer b) {
     return make_token(transient, 0, &(Token){ sym(string), .sval = d});
 }
 
-static Token *read_ident(heap h, char c) {
-    buffer b = allocate_buffer(h, 10);
-    buffer_write_byte(b, c);
+static Token *read_ident(heap h, buffer b) {
+    buffer d = allocate_buffer(h, 10);
     for (;;) {
         u8 c = *(u8 *)buffer_ref(b, 0);
         // check to make sure this handles utf8
         if (isalnum(c) || (c & 0x80) || c == '_' || c == '$') {
-            buffer_write_byte(b, c);
+            buffer_write_byte(d, c);
             b->start++;
             continue;
         }
-        return make_ident(h, b);
+        return make_ident(h, d);
     }
 }
 
@@ -232,7 +231,7 @@ static Token *read_rep(buffer b, char expect, symbol t1, symbol els) {
 static Token *read_rep2(buffer b, char expect1, symbol t1, char expect2, symbol t2, symbol els) {
     if (next(b, expect1))
         return make_keyword(transient, 0, t1);
-    return make_keyword(next(b, expect2) ? t2 : els);
+    return make_keyword(transient, 0, next(b, expect2) ? t2 : els);
 }
 
 // not the prettiest state machine at the ball
@@ -243,55 +242,56 @@ static Token *do_read_token(buffer b) {
     u8 c = *(u8 *)buffer_ref(b, 0);
     switch (c) {
     case '\n': return newline_token;
-    case ':': return make_keyword(next(b, '>') ? ']' : ':');
-    case '#': return make_keyword(next(b, '#') ? KHASHHASH : '#');
-    case '+': return read_rep2(b, '+', sym(inc), '=', sym(+), '+');
-    case '*': return read_rep(b, '=', OP_A_MUL, '*');
-    case '=': return read_rep(b, '=', OP_EQ, '=');
-    case '!': return read_rep(b, '=', sym(!=), '!');
-    case '&': return read_rep2(b, '&', sym(&), '=', sym(&), '&');
-    case '|': return read_rep2(b, '|', sym(|), '=', sym(|), '|');
-    case '^': return read_rep(b, '=', sym(^), '^');
+        // why dont these use rep2
+    case ':': return make_keyword(transient, 0, next(b, '>') ? symq("]") : symq(":"));
+    case '#': return make_keyword(transient, 0, sym(#));
+    case '+': return read_rep2(b, '+', sym(inc), '=', sym(+), sym(+));
+    case '*': return read_rep(b, '=', sym(*=), sym(*));
+    case '=': return read_rep(b, '=', sym(=), sym(=));
+    case '!': return read_rep(b, '=', sym(!=), sym(!));
+    case '&': return read_rep2(b, '&', sym(&), '=', sym(&), sym(&));
+    case '|': return read_rep2(b, '|', sym(|), '=', sym(|), sym(|));
+    case '^': return read_rep(b, '=', sym(^), sym(^));
     case '"': return read_string(b);
     case '\'': return read_char(b);
-    case '/': return make_keyword(next(b, '=') ? sym(/) : '/');
+    case '/': return make_keyword(transient, 0, next(b, '=') ? sym(/) : sym(/));
     case 'a' ... 'z': case 'A' ... 'Z': case '_': case '$':
     case 0x80 ... 0xFD:
-        return read_ident(b);
+        // c is unconsumed
+        return read_ident(transient, b);
     case '0' ... '9':
         return read_number(b);
     case '.':
-        if (isdigit(peek()))
-            return read_number(c);
+        if (isdigit(readc(b)))
+            return read_number(b);
         if (next(b, '.')) {
             if (next(b, '.'))
-                return make_keyword(KELLIPSIS);
-            return make_ident("..");
+                return make_keyword(transient, 0, sym(...));
+            return make_ident(transient, staticbuffer(".."));
         }
-        return make_keyword('.');
+        return make_keyword(transient, 0, sym(.));
     case '(': case ')': case ',': case ';': case '[': case ']': case '{':
-    case '}': case '?': case '~':
-        return make_keyword(c);
+    case '}': case '?': case '~':{
+        char k[2]={c, 0};
+        return make_keyword(transient, 0, sym_this(k));
+    }
     case '-':
-        if (next(b, '-')) return make_keyword(OP_DEC);
-        if (next(b, '>')) return make_keyword(sym(->));
-        if (next(b, '=')) return make_keyword(OP_A_SUB);
-        return make_keyword('-');
+        if (next(b, '-')) return make_keyword(transient, 0, sym(dec));
+        if (next(b, '>')) return make_keyword(transient, 0, sym(->));
+        if (next(b, '=')) return make_keyword(transient, 0, sym(-=));
+        return make_keyword(transient, 0, sym(-));
     case '<':
-        if (next(b, '<')) return read_rep('=', OP_A_SAL, OP_SAL);
-        if (next(b, '=')) return make_keyword(OP_LE);
-        if (next(b, ':')) return make_keyword('[');
-        if (next(b, '%')) return make_keyword('{');
-        return make_keyword('<');
+        if (next(b, '<')) return read_rep(b, '=', sym(<<=), sym(<<));
+        if (next(b, '=')) return make_keyword(transient, 0, sym(<));
+        if (next(b, ':')) return make_keyword(transient, 0, symq("["));
+        if (next(b, '%')) return make_keyword(transient, 0, symq("{"));
+        return make_keyword(transient, 0, sym(<));
     case '>':
-        if (next(b, '=')) return make_keyword(OP_GE);
-        if (next(b, '>')) return read_rep('=', OP_A_SAR, OP_SAR);
-        return make_keyword('>');
+        if (next(b, '=')) return make_keyword(transient, 0, sym(>=));
+        if (next(b, '>')) return read_rep(b, '=', sym(>>=), sym(>>));
+        return make_keyword(transient, 0, sym(>));
     case '%': {
-        Token *tok = read_hash_digraph();
-        if (tok)
-            return tok;
-        return read_rep('=', OP_A_MOD, '%');
+        return read_rep(b, '=', sym(%=), sym(%));
     }
     }
 }
