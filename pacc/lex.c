@@ -4,7 +4,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
-#include "8cc.h"
+#include "nc.h"
 
 static Token *eof_token;
 
@@ -122,7 +122,7 @@ static Token *read_number(buffer b) {
             b->start++;
             buffer_write_byte(d, c);                    
         } else {
-            return make_number(d);
+            return make_number(transient, 0, d);
         }
     }
 }
@@ -145,7 +145,7 @@ static int read_octal_char(buffer b, int c) {
 
 // Reads a \x escape sequence.
 static int read_hex_char(buffer b) {
-    location p = get_pos(-2);
+    //    location p = get_pos(-2);
     int c = readc(b);
     if (!isxdigit(c))
         errorp(p, "\\x is not followed by a hexadecimal character: %c", c);
@@ -161,7 +161,7 @@ static int read_hex_char(buffer b) {
 }
 
 static int read_escaped_char(buffer b) {
-    location p = get_pos(-1);
+    //    location p = get_pos(-1);
     int c = readc(b);
 
     switch (c) {
@@ -188,25 +188,26 @@ static Token *read_char(buffer b) {
     c = readc(b);
     if (c != '\'')
         errorp(pos, "unterminated char");
-    return make_char(transient, b, r);
+    return make_char(transient, 0, r);
 }
 
 // Reads a string literal.
-static Token *read_string(heap h, buffer b) {
-    buffer b = allocate_buffer(h, 10);
+static Token *read_string(buffer b) {
+    heap h = transient;
+    buffer d = allocate_buffer(h, 10);
     for (;;) {
         if (buffer_length(b) == 0)  errorp(pos, "unterminated string");
         int c = readc(b);
         if (c == '"')
             break;
         if (c != '\\') {
-            buffer_write_byte(b, c);
+            buffer_write_byte(d, c);
             continue;
         }
-        c = read_escaped_char();
-        buffer_write_byte(b, c);        
+        c = read_escaped_char(b);
+        buffer_write_byte(d, c);        
     }
-    return make_token(&(Token){ sym(string), .sval = b});
+    return make_token(transient, 0, &(Token){ sym(string), .sval = d});
 }
 
 static Token *read_ident(heap h, char c) {
@@ -224,32 +225,13 @@ static Token *read_ident(heap h, char c) {
     }
 }
 
-// Reads a digraph starting with '%'. Digraphs are alternative spellings
-// for some punctuation characters. They are useless in ASCII.
-// We implement this just for the standard compliance.
-// See C11 6.4.6p3 for the spec.
-static Token *read_hash_digraph(buffer b) {
-    if (next(b, '>'))
-        return make_keyword('}');
-    if (next(b, ':')) {
-        if (next(b, '%')) {
-            if (next(b, ':')) {
-                b->start++;
-                return make_keyword(KHASHHASH);
-            }
-        }
-        return make_keyword('#');
-    }
-    return NULL;
+static Token *read_rep(buffer b, char expect, symbol t1, symbol els) {
+    return make_keyword(transient, 0, next(b, expect) ? t1 : els);
 }
 
-static Token *read_rep(char expect, int t1, int els) {
-    return make_keyword(next(b, expect) ? t1 : els);
-}
-
-static Token *read_rep2(buffer b, char expect1, int t1, char expect2, int t2, char els) {
+static Token *read_rep2(buffer b, char expect1, symbol t1, char expect2, symbol t2, symbol els) {
     if (next(b, expect1))
-        return make_keyword(t1);
+        return make_keyword(transient, 0, t1);
     return make_keyword(next(b, expect2) ? t2 : els);
 }
 
@@ -263,18 +245,17 @@ static Token *do_read_token(buffer b) {
     case '\n': return newline_token;
     case ':': return make_keyword(next(b, '>') ? ']' : ':');
     case '#': return make_keyword(next(b, '#') ? KHASHHASH : '#');
-    case '+': return read_rep2('+', OP_INC, '=', OP_A_ADD, '+');
-    case '*': return read_rep('=', OP_A_MUL, '*');
-    case '=': return read_rep('=', OP_EQ, '=');
-    case '!': return read_rep('=', OP_NE, '!');
-    case '&': return read_rep2('&', OP_LOGAND, '=', OP_A_AND, '&');
-    case '|': return read_rep2('|', OP_LOGOR, '=', OP_A_OR, '|');
-    case '^': return read_rep('=', OP_A_XOR, '^');
-    case '"': return read_string(ENC_NONE);
-    case '\'': return read_char(ENC_NONE);
-    case '/': return make_keyword(next(b, '=') ? OP_A_DIV : '/');
-    case 'a' ... 't': case 'v' ... 'z': case 'A' ... 'K':
-    case 'M' ... 'T': case 'V' ... 'Z': case '_': case '$':
+    case '+': return read_rep2(b, '+', sym(inc), '=', sym(+), '+');
+    case '*': return read_rep(b, '=', OP_A_MUL, '*');
+    case '=': return read_rep(b, '=', OP_EQ, '=');
+    case '!': return read_rep(b, '=', sym(!=), '!');
+    case '&': return read_rep2(b, '&', sym(&), '=', sym(&), '&');
+    case '|': return read_rep2(b, '|', sym(|), '=', sym(|), '|');
+    case '^': return read_rep(b, '=', sym(^), '^');
+    case '"': return read_string(b);
+    case '\'': return read_char(b);
+    case '/': return make_keyword(next(b, '=') ? sym(/) : '/');
+    case 'a' ... 'z': case 'A' ... 'Z': case '_': case '$':
     case 0x80 ... 0xFD:
         return read_ident(b);
     case '0' ... '9':
@@ -293,7 +274,7 @@ static Token *do_read_token(buffer b) {
         return make_keyword(c);
     case '-':
         if (next(b, '-')) return make_keyword(OP_DEC);
-        if (next(b, '>')) return make_keyword(OP_ARROW);
+        if (next(b, '>')) return make_keyword(sym(->));
         if (next(b, '=')) return make_keyword(OP_A_SUB);
         return make_keyword('-');
     case '<':

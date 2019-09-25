@@ -35,7 +35,7 @@ typedef struct parse {
     
     vector toplevels;
     vector localvars;
-    vector gotos;
+    vector gotos; // ehh
     vector cases;
     Type *current_func_type;
     
@@ -182,7 +182,6 @@ Token *lex(void);
 boolean is_inttype(Type *ty);
 void *make_pair(heap h, void *first, void *second);
 int eval_intexpr(Node *node, Node **addr);
-Node *read_expr(void);
 vector *read_toplevels(void);
 void parse_init(heap);
 
