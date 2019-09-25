@@ -1,6 +1,6 @@
 // Copyright 2012 Rui Ueyama. Released under the MIT license.
 
-#include "nc.h"
+#include "pacc.h"
 
 heap transient; // xx -elim
 #define sstring staticbuffer

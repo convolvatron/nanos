@@ -13,10 +13,7 @@ typedef struct Type {
     // array length
     int len;
     vector fields;
-    int offset; // what is an offset?
-    // bitfield
-    int bitoff;
-    int bitsize;
+    int bitsize; // is arraylen really?
     // function
     struct Type *rettype;
     vector params; // params = fields

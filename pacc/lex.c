@@ -1,20 +1,8 @@
 // Copyright 2012 Rui Ueyama. Released under the MIT license.
 
-#include <ctype.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <string.h>
-#include "nc.h"
-
-static Token *eof_token;
+#include "pacc.h"
 
 location get_pos(int offset);
-
-static buffer pos_string(heap h, location s) {
-    //    File *f = current_file();
-    return aprintf(h, "%d:%d", s->line, s->column);
-}
-
 #define errorp(p, ...) 
 #define warnp(p, ...)  
 
@@ -41,10 +29,6 @@ static Token *make_char(heap h, location f, int c) {
     return make_token(h, f, &(Token){ sym(char), .c = c});
 }
 
-static boolean iswhitespace(int c) {
-    return c == ' ' || c == '\t' || c == '\f' || c == '\v';
-}
-
 static char readc(buffer b)
 {
     return *(u8 *)buffer_ref(b, 0);    
@@ -60,65 +44,14 @@ static boolean next(buffer b, int expect) {
     return false;
 }
 
-static boolean do_skip_space(buffer b) {
-    if (buffer_length(b) == 0) return false;
-    int c = readc(b);
-    if (iswhitespace(c)) return true;
-    if (c == '/') {
-        if (next(b, '*')) {
-            // location p = get_pos(-2);
-            boolean maybe_end = false;
-            for (;;) {
-                if (buffer_length(b) == 0)
-                    errorp(p, "premature end of block comment");
-                int c = readc(b);
-                b->start++;                
-                if (c == '/' && maybe_end)
-                    return true;
-                maybe_end = (c == '*');
-            }            
-            return true;
-        }
-        if (next(b, '/')) {
-            for (;;) {
-                if (buffer_length(b) == 0) return true;
-                int c = readc(b);
-                // keep going
-                if (c == '\n') {
-                    return true;
-                }
-                b->start++;
-            }            
-            return true;
-        }
-    }
-    return false;
-}
-
-// Skips spaces including comments.
-// Returns true if at least one space is skipped.
-static boolean skip_space(buffer b) {
-    if (!do_skip_space(b))
-        return false;
-    while (do_skip_space(b));
-    return true;
-}
-
-static void skip_char(buffer b) {
-    // this isn't right
-    if (readc(b) == '\\')
-        readc(b);
-    char c;
-    while ((buffer_length(b) > 0) && (c = readc(b), c != '\''));
-}
-
 // Reads a number literal. Lexer's grammar on numbers is not strict.
 // Integers and floating point numbers and different base numbers are not distinguished.
 static Token *read_number(buffer b) {
     buffer d = allocate_buffer(transient, 10);
     for (;;) {
         int c = readc(b);
-        if (isdigit(c) || isalpha(c)) {
+        // this actually checks for hex, but oddly is safe in this case
+        if (digit_of(c) > 0 || isalpha(c)) {
             b->start++;
             buffer_write_byte(d, c);                    
         } else {
@@ -147,7 +80,7 @@ static int read_octal_char(buffer b, int c) {
 static int read_hex_char(buffer b) {
     //    location p = get_pos(-2);
     int c = readc(b);
-    if (!isxdigit(c))
+    if (digit_of(c)< 0)
         errorp(p, "\\x is not followed by a hexadecimal character: %c", c);
     int r = 0;
     for (;; c = readc(b)) {
@@ -215,7 +148,7 @@ static Token *read_ident(heap h, buffer b) {
     for (;;) {
         u8 c = *(u8 *)buffer_ref(b, 0);
         // check to make sure this handles utf8
-        if (isalnum(c) || (c & 0x80) || c == '_' || c == '$') {
+        if ((digit_of(c) > 0) || isalpha(c) || (c & 0x80) || c == '_' || c == '$') {
             buffer_write_byte(d, c);
             b->start++;
             continue;
@@ -236,21 +169,21 @@ static Token *read_rep2(buffer b, char expect1, symbol t1, char expect2, symbol 
 
 // not the prettiest state machine at the ball
 static Token *do_read_token(buffer b) {
-    if (buffer_length(b)  == 0) {
-        return eof_token;
-    }
+    if (buffer_length(b)  == 0) 
+        return &(Token){sym(eof)};
+
     u8 c = *(u8 *)buffer_ref(b, 0);
     switch (c) {
-    case '\n': return newline_token;
-        // why dont these use rep2
-    case ':': return make_keyword(transient, 0, next(b, '>') ? symq("]") : symq(":"));
+    case '\n': return make_token(transient, 0, &(Token){ sym(newline)});
+    // why dont these use rep2..stupid alternate spellings
+    case ':': return make_keyword(transient, 0, sym(:));
     case '#': return make_keyword(transient, 0, sym(#));
-    case '+': return read_rep2(b, '+', sym(inc), '=', sym(+), sym(+));
+    case '+': return read_rep2(b, '+', sym(inc), '=', sym(+), sym(+=));
     case '*': return read_rep(b, '=', sym(*=), sym(*));
     case '=': return read_rep(b, '=', sym(=), sym(=));
     case '!': return read_rep(b, '=', sym(!=), sym(!));
-    case '&': return read_rep2(b, '&', sym(&), '=', sym(&), sym(&));
-    case '|': return read_rep2(b, '|', sym(|), '=', sym(|), sym(|));
+    case '&': return read_rep2(b, '&', sym(&), '=', sym(&), sym(&=));
+    case '|': return read_rep2(b, '|', sym(|), '=', sym(|), sym(|=));
     case '^': return read_rep(b, '=', sym(^), sym(^));
     case '"': return read_string(b);
     case '\'': return read_char(b);
@@ -262,7 +195,7 @@ static Token *do_read_token(buffer b) {
     case '0' ... '9':
         return read_number(b);
     case '.':
-        if (isdigit(readc(b)))
+        if (digit_of(readc(b)) > 0)
             return read_number(b);
         if (next(b, '.')) {
             if (next(b, '.'))
@@ -294,14 +227,10 @@ static Token *do_read_token(buffer b) {
         return read_rep(b, '=', sym(%=), sym(%));
     }
     }
+    return 0;
 }
 
 boolean is_keyword(Token *tok, symbol c) {
     return (tok->kind == sym(keyword)) && (tok->id == c);
-}
-
-void init_token()
-{
-    eof_token= &(Token){ sym(eof) };
 }
  

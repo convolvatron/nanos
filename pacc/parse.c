@@ -1,5 +1,5 @@
 // Copyright 2012 Rui Ueyama. Released under the MIT license.
-#include "nc.h"
+#include "pacc.h"
 
 static symbol close_paren, open_paren, comma, close_brace, open_brace, semicolon,
     open_bracket, close_bracket, colon;
@@ -19,11 +19,26 @@ Token *token(parse p)
     return 0;
 }
 
+static void push_scope(parse p)
+{
+}
+
+static void pop_scope(parse p)
+{
+}
+
+// we care about the ordering, so a map and a vector..
 Type *lookup_field(Type *t, symbol s)
 {
     return 0;
 }
 
+Type *lookup_index(Type *t, int x)
+{
+    return 0;
+}
+
+   
 void consume(parse p)
 {
 }
@@ -164,8 +179,8 @@ static Node *ast_decl(Node *var, vector init) {
     return make_ast(&(Node){ sym(decl), .declvar = var, .declinit = init }, 0);
 }
 
-static Node *ast_init(Node *val, Type *totype, int off) {
-    return make_ast(&(Node){ sym(init), .initval = val, .initoff = off, .totype = totype }, 0);
+static Node *ast_init(Node *val, Type *totype) {
+    return make_ast(&(Node){ sym(init), .initval = val, .totype = totype }, 0);
 }
 
 static Node *ast_conv(Type *totype, Node *val) {
@@ -244,11 +259,6 @@ static Type *make_numtype(symbol kind, boolean usig) {
     return r;
 }
 
-
-static Type* make_rectype() {
-    return 0; 
-}
-
 static Type* make_func_type(Type *rettype, vector paramtypes, boolean has_varargs) {
     return make_type(&(Type){
             sym(func),
@@ -291,11 +301,6 @@ static void ensure_lvalue(Node *node) {
 static void ensure_inttype(Node *node) {
     if (!is_inttype(node->ty))
         error("integer type expected, but got %s", node2s(node));
-}
-
-static void ensure_arithtype(Node *node) {
-    if (!is_inttype(node->ty))
-        error("arithmetic type expected, but got %s", node2s(node));
 }
 
 static void ensure_not_void(Type *ty) {
@@ -512,19 +517,19 @@ static Type *read_enum_def(parse p) {
             errort(tok, "declarations of %s does not match", tag);
     }
     if (!is_keyword(tok, sym({))) {
-        if (!tag || !get(p->tags, tag))
-            errort(tok, "enum tag %s is not defined", tag);
-        return p->type_int;
-    }
-    consume(p);
-    if (tag)
-        set(p->tags, tag, p->type_enum);
+            if (!tag || !get(p->tags, tag))
+                errort(tok, "enum tag %s is not defined", tag);
+            return p->type_int;
+        }
+        consume(p);
+        if (tag)
+            set(p->tags, tag, p->type_enum);
 
-    int val = 0;
-    for (;;) {
-        tok = token(p);
-        if (is_keyword(tok, sym(})))
-            break;
+        int val = 0;
+        for (;;) {
+            tok = token(p);
+            if (is_keyword(tok, sym(})))
+        break;
         if (tok->kind != sym(ident))
             errort(tok, "identifier expected, but got %s", tok2s(tok));
         buffer name = tok->sval;
@@ -537,10 +542,10 @@ static Type *read_enum_def(parse p) {
         if (next_token(p, sym(intern(sstring","))))
             continue;
         if (next_token(p, sym(})))
-            break;
-        errort(peek(), "',' or '}' expected, but got %s", tok2s(peek()));
-    }
-    return p->type_int;
+        break;
+    errort(peek(), "',' or '}' expected, but got %s", tok2s(peek()));
+}
+return p->type_int;
 }
 
 static Type *read_decl_spec(parse p, symbol *rsclass);
@@ -555,7 +560,7 @@ static Node *read_comma_expr(parse p) {
     Node *node = read_assignment_expr(p);
     while (next_token(p, comma)) {
         Node *expr = read_assignment_expr(p);
-        node = ast_binop(p, expr->ty, comma, expr);
+        node = ast_binop(p, expr->ty, comma, node, expr);
     }
     return node;
 }
@@ -589,7 +594,7 @@ static int read_alignas(parse p) {
 static Type *read_rectype_def(parse p, symbol kind);
 
 static Type *read_decl_spec(parse p, symbol *rsclass) {
-    symbol sclass;
+    symbol sclass = 0;
     Token *tok = token(p);
     
     if (!is_type(p, tok))
@@ -621,58 +626,58 @@ static Type *read_decl_spec(parse p, symbol *rsclass) {
             (tok->id != sym(volatile)) &&
             (tok->id != sym(inline)) &&
             (tok->id != sym(noreturn))) {
-                // construct metadata
-                if (tok->id == sym(typedef))  {
-                    if (sclass) goto err;
-                    sclass = sym(typedef);
-                }
-                if (tok->id == sym(extern)) {
-                    if (sclass) goto err;
-                    sclass = sym(extern);
-                }
-                if (tok->id == sym(static)){
-                    if (sclass) goto err;
-                    sclass = sym(static);
-                }
-                if (tok->id == sym(auto)) {
-                    if (sclass) goto err;
-                    sclass = sym(auto);
-                }
-                if (tok->id == sym(register)) {
-                    if (sclass) goto err; sclass = sym(register);
-                }
-                if (tok->id == sym(void))     {if (kind) goto err; kind = kvoid; }
-                if (tok->id == sym(boolean))  {if (kind) goto err; kind = kboolean; }
-                if (tok->id == sym(char))     {if (kind) goto err; kind = kchar; }
-                if (tok->id == sym(int))      {if (kind) goto err; kind = kint; }
-                if (tok->id == sym(signed))   {if (sig) goto err; sig = ksigned; }
-                if (tok->id == sym(unsigned)) {if (sig) goto err; sig = kunsigned; }
-                if (tok->id == sym(short))    {if (size) goto err; size = kshort;}
+            // construct metadata
+            if (tok->id == sym(typedef))  {
+                if (sclass) goto err;
+                sclass = sym(typedef);
+            }
+            if (tok->id == sym(extern)) {
+                if (sclass) goto err;
+                sclass = sym(extern);
+            }
+            if (tok->id == sym(static)){
+                if (sclass) goto err;
+                sclass = sym(static);
+            }
+            if (tok->id == sym(auto)) {
+                if (sclass) goto err;
+                sclass = sym(auto);
+            }
+            if (tok->id == sym(register)) {
+                if (sclass) goto err; sclass = sym(register);
+            }
+            if (tok->id == sym(void))     {if (kind) goto err; kind = kvoid; }
+            if (tok->id == sym(boolean))  {if (kind) goto err; kind = kboolean; }
+            if (tok->id == sym(char))     {if (kind) goto err; kind = kchar; }
+            if (tok->id == sym(int))      {if (kind) goto err; kind = kint; }
+            if (tok->id == sym(signed))   {if (sig) goto err; sig = ksigned; }
+            if (tok->id == sym(unsigned)) {if (sig) goto err; sig = kunsigned; }
+            if (tok->id == sym(short))    {if (size) goto err; size = kshort;}
                 
-                if ((tok->id == sym(struct)) || (tok->id == sym(union)))
-                    {if (usertype) goto err; usertype = read_rectype_def(p, tok->id); }
-                if (tok->id == sym(enum))     {if (usertype) goto err; usertype = read_enum_def(p); }
-                if (tok->id == sym(alignas)) {
-                    int val = read_alignas(p);
-                    if (val < 0)
-                        errort(tok, "negative alignment: %d", val);
-                    // C11 6.7.5p6: alignas(0) should have no effect.
-                    if (val != 0) {
-                        if (align == -1 || val < align)
-                            align = val;
-                    }
+            if ((tok->id == sym(struct)) || (tok->id == sym(union)))
+                {if (usertype) goto err; usertype = read_rectype_def(p, tok->id); }
+            if (tok->id == sym(enum))     {if (usertype) goto err; usertype = read_enum_def(p); }
+            if (tok->id == sym(alignas)) {
+                int val = read_alignas(p);
+                if (val < 0)
+                    errort(tok, "negative alignment: %d", val);
+                // C11 6.7.5p6: alignas(0) should have no effect.
+                if (val != 0) {
+                    if (align == -1 || val < align)
+                        align = val;
                 }
-                if (tok->id == sym(long)) {
+            }
+            if (tok->id == sym(long)) {
                 if (size == 0) size = klong;
                 else if (size == klong) size = kllong;
                 else goto err;
                 
             }
-                if (tok->id == sym(typeof)) {
+            if (tok->id == sym(typeof)) {
                 if (usertype) goto err;
                 usertype = read_typeof(p);
             }
-                goto done;
+            goto done;
         }
     errcheck:
         consume(p);
@@ -709,6 +714,7 @@ static Type *read_decl_spec(parse p, symbol *rsclass) {
     return ty;
  err:
     errort(tok, "type mismatch: %s", tok2s(tok));
+    return 0;
 }
 
 static vector read_rectype_fields_sub(parse p);
@@ -880,6 +886,7 @@ static Node *read_stmt(parse p);
 
 static Node *vector_tail(vector r)
 {
+    return 0;
 }
 
 
@@ -928,6 +935,7 @@ static Node *read_primary_expr(parse p) {
         return ast_string(p, tok->sval);
 
     error("internal error: unknown token kind: %d", tok->kind);
+    return 0;
 }
 
 
@@ -1069,16 +1077,16 @@ static boolean is_string(Type *ty) {
 }
 
 
-static void assign_string(parse p, vector inits, Type *ty, buffer s, int off) {
+static void assign_string(parse p, vector inits, Type *ty, buffer s) {
 }
 #if 0
-    if (ty->len == -1)
-        ty->len = ty->size = buffer_length(s);
-    int i = 0;
-    for (; i < ty->len && *p; i++)
-        vector_push(inits, ast_init(ast_inttype(p, p->type_char, *p++), p->type_char, off + i));
-    for (; i < ty->len; i++)
-        vector_push(inits, ast_init(ast_inttype(p, p->type_char, 0), p->type_char, off + i));
+if (ty->len == -1)
+    ty->len = ty->size = buffer_length(s);
+int i = 0;
+for (; i < ty->len && *p; i++)
+    vector_push(inits, ast_init(ast_inttype(p, p->type_char, *p++), p->type_char, off + i));
+for (; i < ty->len; i++)
+    vector_push(inits, ast_init(ast_inttype(p, p->type_char, 0), p->type_char, off + i));
 }
 #endif
 
@@ -1107,9 +1115,9 @@ static void skip_to_brace(parse p) {
     }
 }
 
-static void read_initializer_elem(parse p, vector inits, Type *ty, int off, boolean designated);
+static void read_initializer_elem(parse p, vector inits, Type *ty, boolean designated);
 
-static void read_array_initializer(parse p, vector inits, Type *ty, int off, boolean designated) {
+static void read_array_initializer(parse p, vector inits, Type *ty, boolean designated) {
     boolean has_brace = maybe_read_brace(p);
     boolean flexible = (ty->len <= 0);
     int elemsize = ty->ptr->size;
@@ -1118,7 +1126,7 @@ static void read_array_initializer(parse p, vector inits, Type *ty, int off, boo
         Token *tok = token(p);
         if (is_keyword(tok, close_brace)) {
             //            if (!has_brace)
-                //                unget_token(tok);
+            //                unget_token(tok);
             goto finish;
         }
         if ((is_keyword(tok, sym(.)) || is_keyword(tok, open_brace)) && !has_brace && !designated) {
@@ -1135,7 +1143,7 @@ static void read_array_initializer(parse p, vector inits, Type *ty, int off, boo
             designated = true;
             consume(p);
         }
-        read_initializer_elem(p, inits, ty->ptr, off + elemsize * i, designated);
+        read_initializer_elem(p, inits, ty->ptr, designated);
         maybe_skip_comma(p);
         designated = false;
     }
@@ -1148,9 +1156,10 @@ static void read_array_initializer(parse p, vector inits, Type *ty, int off, boo
     }
 }
 
-static void read_struct_initializer(parse p, vector inits, Type *ty, int off, boolean designated) {
+static void read_struct_initializer(parse p, vector inits, Type *ty, boolean designated) {
     boolean has_brace = maybe_read_brace(p);
-    // guess the problem here is implicit field names?
+    int i = 0;
+
     for (;;) {
         Token *tok = token(p);
         if (is_keyword(tok, close_brace)) {
@@ -1158,31 +1167,27 @@ static void read_struct_initializer(parse p, vector inits, Type *ty, int off, bo
             //                unget_token(tok);
             return;
         }
-        buffer fieldname;
+
         Type *fieldtype;
         if ((is_keyword(tok, sym(.)) || is_keyword(tok, open_brace)) && !has_brace && !designated) {
             //            unget_token(tok);
             return;
         }
+
         if (is_keyword(tok, sym(.))) {
             tok = token(p);
             if (!tok || tok->kind != sym(ident))
                 errort(tok, "malformed desginated initializer: %s", tok2s(tok));
-            fieldname = tok->sval;
-            // ordered and unoredered
-            fieldtype = get(ty->fields, fieldname);
+            fieldtype = lookup_field(ty, intern(tok->sval));
             if (!fieldtype)
                 errort(tok, "field does not exist: %s", tok2s(tok));
             designated = true;
             consume(p);
         } else {
-            // hmm?
-            //            if (i == vector_length(keys))
-            //                break;
-            //            fieldname = vector_get(keys, i++);
-            //            fieldtype = lookup_field(ty, intern(fieldname));
+            fieldtype = lookup_index(ty, i++);
         }
-        read_initializer_elem(p, inits, fieldtype, off + fieldtype->offset, designated);
+        // off? really?
+        read_initializer_elem(p, inits, fieldtype, designated);
         maybe_skip_comma(p);
         designated = false;
         if (ty->kind != sym(struct))
@@ -1193,16 +1198,16 @@ static void read_struct_initializer(parse p, vector inits, Type *ty, int off, bo
 }
 
 static void read_initializer_list(parse p,
-                                  vector inits, Type *ty, int off, boolean designated) {
+                                  vector inits, Type *ty, boolean designated) {
     Token *tok = token(p);
     if (is_string(ty)) {
         if (tok->kind == sym(string)) {
-            assign_string(p, inits, ty, tok->sval, off);
+            assign_string(p, inits, ty, tok->sval);
             return;
         }
         if (is_keyword(tok, open_brace) && token(p)->kind == sym(string)) {
             tok = token(p);
-            assign_string(p, inits, ty, tok->sval, off);
+            assign_string(p, inits, ty, tok->sval);
             expect(p, close_brace);
             consume(p);
             return;
@@ -1210,24 +1215,24 @@ static void read_initializer_list(parse p,
     }
     // unget_token(tok);
     if (ty->kind == sym(array)) {
-        read_array_initializer(p, inits, ty, off, designated);
+        read_array_initializer(p, inits, ty, designated);
     } else if (ty->kind == sym(struct)) {
-        read_struct_initializer(p, inits, ty, off, designated);
+        read_struct_initializer(p, inits, ty, designated);
     } else {
         Type *arraytype = make_array_type(ty, 1);
-        read_array_initializer(p, inits, arraytype, off, designated);
+        read_array_initializer(p, inits, arraytype, designated);
     }
 }
 
 static vector read_decl_init(parse p, Type *ty) {
     vector r = allocate_vector(p->h, 10);
     if (is_keyword(token(p), open_brace) || is_string(ty)) {
-        read_initializer_list(p, r, ty, 0, false);
+        read_initializer_list(p, r, ty, false);
     } else {
         Node *init = conv(read_assignment_expr(p));
         if (is_inttype(init->ty) && init->ty->kind != ty->kind)
             init = ast_conv(ty, init);
-        vector_push(r, ast_init(init, ty, 0));
+        vector_push(r, ast_init(init, ty));
     }
     return r;
 }
@@ -1413,17 +1418,17 @@ static Node *read_struct_field(parse p, Node *struc) {
 }
 
 
-static void read_initializer_elem(parse p, vector inits, Type *ty, int off, boolean designated) {
+static void read_initializer_elem(parse p, vector inits, Type *ty, boolean designated) {
     next_token(p, sym(=));
     if (ty->kind == sym(array) || ty->kind == sym(struct)) {
-        read_initializer_list(p, inits, ty, off, designated);
+        read_initializer_list(p, inits, ty, designated);
     } else if (next_token(p, open_brace)) {
-        read_initializer_elem(p, inits, ty, off, true);
+        read_initializer_elem(p, inits, ty, true);
         expect(p, close_brace);
     } else {
         Node *expr = conv(read_assignment_expr(p));
         ensure_assignable(ty, expr->ty);
-        vector_push(inits, ast_init(expr, ty, off));
+        vector_push(inits, ast_init(expr, ty));
     }
 }
 
@@ -1624,22 +1629,14 @@ static void read_decl(parse p, vector block, boolean isglobal) {
     }
 }
 
-tuple make_map_parent(tuple p)
-{
-}
-
 static Node *read_func_body(parse p, Type *functype, buffer fname, vector params) {
-    p->localenv = make_map_parent(p->localenv);
-    p->localvars = allocate_vector(p->h, 10);
-    p->current_func_type = functype;
+    push_scope(p); // functype? what about params?
     Node *funcname = ast_string(p, fname);
     set(p->localenv, "__func__", funcname);
     set(p->localenv, "__FUNCTION__", funcname);
     Node *body = read_compound_stmt(p);
     Node *r = ast_func(functype, fname, params, body, p->localvars);
-    p->current_func_type = NULL;
-    p->localenv = NULL;
-    p->localvars = NULL;
+    pop_scope(p);    
     return r;
 }
 
@@ -1708,9 +1705,7 @@ static void backfill_labels(parse p) {
 static Node *read_funcdef(parse p) {
     symbol sclass = 0;
     Type *basetype = read_decl_spec(p, &sclass);
-    p->localenv = make_map_parent(p->globalenv);
-    p->gotos = allocate_vector(p->h, 10);
-    //    p->labels = timm();
+    push_scope(p);
     buffer name;
     vector params = allocate_vector(p->h, 10);
     Type *functype = read_declarator(p, &name, basetype, params, DECL_BODY);
@@ -1719,7 +1714,7 @@ static Node *read_funcdef(parse p) {
     expect(p, open_brace);
     Node *r = read_func_body(p, functype, name, params);
     backfill_labels(p);
-    p->localenv = NULL;
+    pop_scope(p);
     return r;
 }
 
@@ -1761,13 +1756,6 @@ static Node *read_opt_decl_or_stmt(parse p) {
     return ast_compound_stmt(list);
 }
 
-static void push_scope(parse p)
-{
-}
-
-static void pop_scope(parse p)
-{
-}
 
 
 static Node *read_for_stmt(parse p) {
@@ -2041,15 +2029,6 @@ static void concatenate_string(parse p, Token *tok) {
     tok->sval = b;
 }
 
-static Token *token_get(parse p) {
-    Token *r = token(p);
-    if (r->kind == sym(invalid))
-        errort(r, "stray character in program: '%c'", r->c);
-    if (r->kind == sym(string) && token(p)->kind == sym(string))
-        concatenate_string(p, r);
-    return r;
-}
-
 static void define_builtin(parse p, buffer name, Type *rettype, vector paramtypes) {
     ast_gvar(p, make_func_type(rettype, paramtypes, false), name);
 }
@@ -2086,5 +2065,6 @@ parse parse_init(heap h) {
     define_builtin(p, staticbuffer("__builtin_return_address"), v, voidptr);
     define_builtin(p, staticbuffer("__builtin_reg_class"), p->type_int, voidptr);
     define_builtin(p, staticbuffer("__builtin_va_arg"), p->type_void, two_voidptrs);
-    define_builtin(p, staticbuffer("__builtin_va_start"), p->type_void, voidptr);        
+    define_builtin(p, staticbuffer("__builtin_va_start"), p->type_void, voidptr);
+    return p;
 }

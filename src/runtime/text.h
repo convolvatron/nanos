@@ -4,6 +4,11 @@
 
 typedef buffer string;
 
+static inline s8 isalpha(character x)
+{
+    return (x <= 'z' && x >= 'a') ||(x <= 'Z' && x >= 'A');
+}
+
 static inline s8 digit_of(character x)
 {
     if ((x <= 'f') && (x >= 'a')) return(x - 'a' + 10);
