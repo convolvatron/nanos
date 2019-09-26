@@ -446,7 +446,7 @@ static void ensure_assignable(Type *totype, Type *fromtype) {
     error("incompatible kind: <%s> <%s>", ty2s(totype), ty2s(fromtype));
 }
 
-
+#if 0
 // xxx little state machines
 static Type *read_int_suffix(parse p, buffer b){
     if (buffer_length(b) > 0) {
@@ -480,7 +480,7 @@ static Type *read_int_suffix(parse p, buffer b){
     }
     return NULL;
 }
-
+#endif
 static Type *read_declarator(parse p, buffer *rname, Type *basety, vector params, int ctx);
 
 static Type *read_abstract_declarator(parse p, Type *basety) {
@@ -2018,6 +2018,7 @@ vector read_toplevels(parse p) {
     }
 }
 
+#if 0
 // C11 5.1.1.2p6 Adjacent string literal tokens are concatenated.
 static void concatenate_string(parse p, Token *tok) {
     buffer b = allocate_buffer(p->h, 10);
@@ -2028,7 +2029,7 @@ static void concatenate_string(parse p, Token *tok) {
     }
     tok->sval = b;
 }
-
+#endif
 static void define_builtin(parse p, buffer name, Type *rettype, vector paramtypes) {
     ast_gvar(p, make_func_type(rettype, paramtypes, false), name);
 }

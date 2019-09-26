@@ -230,6 +230,11 @@ static Token *do_read_token(buffer b) {
     return 0;
 }
 
+Token *get_token(buffer b) {
+    //    skip_whitespace(b);
+    return do_read_token(b);
+}
+    
 boolean is_keyword(Token *tok, symbol c) {
     return (tok->kind == sym(keyword)) && (tok->id == c);
 }
