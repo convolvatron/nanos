@@ -2034,8 +2034,10 @@ static void define_builtin(parse p, buffer name, Type *rettype, vector paramtype
     ast_gvar(p, make_func_type(rettype, paramtypes, false), name);
 }
 
-parse parse_init(heap h) {
+// should be streaming..staying away from conts
+tuple parse_init(heap h, buffer b) {
     parse p = allocate(h, sizeof(struct parse));
+    p->b =b ;
     p->type_void = &(Type){ sym(void), 0, 0, false };    
     Type *v = make_ptr_type(p->type_void);
     vector voidptr = build_vector(h, v);
@@ -2067,5 +2069,6 @@ parse parse_init(heap h) {
     define_builtin(p, staticbuffer("__builtin_reg_class"), p->type_int, voidptr);
     define_builtin(p, staticbuffer("__builtin_va_arg"), p->type_void, two_voidptrs);
     define_builtin(p, staticbuffer("__builtin_va_start"), p->type_void, voidptr);
-    return p;
+    read_toplevels(p);
+    return 0;
 }

@@ -164,6 +164,8 @@ typedef struct {
     buffer label;
 } Case;
 
+tuple parse_init(heap h, buffer b);
+
 #define error(...)       
 #define errort(tok, ...) 
 #define warn(...)        
@@ -173,16 +175,11 @@ void errorf(char *line, char *pos, char *fmt, ...);
 void warnf(char *line, char *pos, char *fmt, ...);
 
 // lex.c
-void lex_init(char *filename);
 boolean is_keyword(Token *tok, symbol c);
 Token *get_token(buffer b);
-Token *lex_string(char *s);
-Token *lex(void);
 
 // parse.c
 boolean is_inttype(Type *ty);
 void *make_pair(heap h, void *first, void *second);
-int eval_intexpr(Node *node, Node **addr);
-vector read_toplevels(parse);
-parse parse_init(heap);
+tuple parse_init(heap, buffer);
 
