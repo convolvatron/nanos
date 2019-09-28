@@ -6,62 +6,63 @@ heap transient; // xx -elim
 #define sstring staticbuffer
 
 // just keep this in the type
-static string string_from_type(Type *ty) {
+static string string_from_type(Type ty) {
     if (!ty)
         return sstring("(nil)");
 
-    if (ty->kind == sym(ptr))
-        return aprintf(transient, "*%s", string_from_type(ty->ptr));
+    symbol kind = get(ty, sym(kind));
+    if (kind == sym(ptr))
+        return aprintf(transient, "*%s", string_from_type(get(ty, sym(pointsto))));
         
-    if (ty->kind == sym(array))                 
-        return aprintf(transient, "[%d]%s", ty->len, string_from_type(ty->ptr));
+    if (kind == sym(array))                 
+        return aprintf(transient, "[%d]%s", sget(ty, sym(length)), string_from_type(get(ty, sym(pointsto))));
     
-    if ((ty->kind == sym(union)) || (ty->kind == sym(struct)))  {
+    if ((kind == sym(union)) || (kind == sym(struct)))  {
         //        symbol key = intern(aprintf(transient, "%p", ty));
-        if (ty->fields) {
+        if (sget(ty, sym(fields))) {
             buffer b = allocate_buffer(transient, 10);
-            bprintf(b, "(%s", ty->kind);
+            bprintf(b, "(%s", kind);
             // ordering of struct entries .. matters semantically
-            table_foreach(ty->fields, fkey, ftype) 
+            table_foreach(get(ty, sym(fields)), fkey, ftype) 
                 bprintf(b, " (%s)", string_from_type(ftype));
             bprintf(b, ")");
             return b;
         }
     }
     
-    if (ty->kind == sym(func)) {
+    if (kind == sym(func)) {
         buffer b = allocate_buffer(transient, 10);
         bprintf(b, "(");
-        if (ty->params) {
+        if (sget(ty, sym(parameters))) {
             boolean first = true;
-            Type *t;             
-            vector_foreach(ty->params, t) {
+            Type t;             
+            vector_foreach(sget(ty, sym(params)), t) {
                 if (!first)  bprintf(b, ",");
                 first = false;
                 bprintf(b, "%s", string_from_type(t));
             }
         }
-        bprintf(b, ")=>%s", string_from_type(ty->rettype));
+        bprintf(b, ")=>%s", string_from_type(sget(ty, sym(return_type))));
         return b;
     }
-    return symbol_string(ty->kind);
+    return symbol_string(kind);
 }
 
-static void node2s(buffer b, Node *node);
+static void node2s(buffer b, Node node);
 
-static void uop_to_string(buffer b, symbol op, Node *node)
+static void uop_to_string(buffer b, symbol op, Node node)
 {
     bprintf(b, "(%s ", op);
-    node2s(b, node->operand);
+    node2s(b, get(node, sym(operand)));
     bprintf(b, ")");
 }
 
-static void binop_to_string(buffer b, symbol s, Node *node)
+static void binop_to_string(buffer b, symbol s, Node node)
 {
     bprintf(b, "(%b ", symbol_string(s));
-    node2s(b, node->left);
+    node2s(b, get(node, sym(left)));
     bprintf(b, " ");
-    node2s(b, node->right);
+    node2s(b, get(node, sym(right)));
     bprintf(b, ")");    
 }
 
@@ -80,175 +81,183 @@ static void a2s_declinit(buffer b, vector initlist) {
     njoin(b, initlist, ' ');
 }
 
-static void node2s(buffer b, Node *n) {
+int value_to_integer(value v)
+{
+    return 0;
+}
+  
+static void node2s(buffer b, Node n) {
     if (!n) {
         bprintf(b, "(nil)");
         return;
     }
-    if (get(n->p->binops, n->kind)) {
-        binop_to_string(b, n->kind, n);
+    symbol kind = sget(n, sym(kind));
+    symbol name = get(n, sym(name));
+    // should be the object, not the name - fix
+    if (sget(n, sym(binops), kind)) {
+        binop_to_string(b, kind, n);
     } else {
-        if (get(n->p->unops, n->kind)) {
-            uop_to_string(b, n->kind, n);                
+        if (sget(n, sym(uops), kind)){        
+            uop_to_string(b, kind, n);                
         } else {
-            if (n->kind == sym(literal)) {
-                symbol ntk = n->ty->kind;
-                if (ntk == sym(char)) {                
-                    if (n->ival == '\n')      bprintf(b, "'\n'");
-                    else if (n->ival == '\\') bprintf(b, "'\\\\'");
-                    else if (n->ival == '\0') bprintf(b, "'\\0'");
-                    else bprintf(b, "'%c'", n->ival);
+            if (kind == sym(literal)) {
+                symbol ntk = sget(n, sym(type), sym(kind));
+                if (ntk == sym(char)) {
+                    int i = value_to_integer(sget(n, sym(integer_value)));
+                    if (i == '\n')      bprintf(b, "'\n'");
+                    else if (i == '\\') bprintf(b, "'\\\\'");
+                    else if (i == '\0') bprintf(b, "'\\0'");
+                    else bprintf(b, "'%c'", i);
                     return;
                 }
                 if ((ntk == sym(int)) ||
                     (ntk == sym(long)) ||
                     (ntk == sym(llong))) {
-                    bprintf(b, "%d", n->ival);
+                    int i = value_to_integer(sget(n, sym(integer_value)));
+                    bprintf(b, "%d", i);
                     return;
                 }
                 if (ntk == sym(array)) {
-                    bprintf(b, "\"%b\"", n->sval);
+                    bprintf(b, "\"%b\"", sget(n, sym(sval)));
                 }
             }
-            if (n->kind == sym(label)) {
-                bprintf(b, "%s:", n->label);
+            if (kind == sym(label)) {
+                bprintf(b, "%s:", name);
                 return;
             }
-            if (n->kind ==  sym(lvar)){
-                bprintf(b, "lv=%s", n->varname);
-                if (n->lvarinit) {
+            if (kind ==  sym(variable)){
+                bprintf(b, "lv=%s", name);
+                value init = sget(n, sym(lvarinit));
+                if (init) {
                     bprintf(b, "(");
-                    a2s_declinit(b, n->lvarinit);
+                    a2s_declinit(b, init);
                     bprintf(b, ")");
                 }
             }
-            if (n->kind == sym(gvar)) {
-                bprintf(b, "gv=%s", n->varname);
-                return;
-            }
 
+            value nty = sget(n, sym(type));
             // xx why are these really so different, isn't this just
             // an expression?
-            if ((n->kind == sym(funcall)) || (n->kind == sym(funcptr_call))) {
-                bprintf(b, "(%s)",string_from_type(n->ty));
-                if (n->kind == sym(funcall))
-                    buffer_append(b, n->fname->contents, buffer_length(n->fname));
+            if ((kind == sym(funcall)) || (kind == sym(funcptr_call))) {
+                bprintf(b, "(%s)", string_from_type(nty));
+                if (kind == sym(funcall))
+                    push_buffer(b, symbol_string(name));
                 else
                     node2s(b, n);
-                njoin(b, n->args, ',');
+                njoin(b, sget(n, sym(arguments)), ',');
                 bprintf(b, ")");
                 return;
             }
             
-            if (n->kind == sym(funcdesg)) {
-                bprintf(b, "(funcdesg %s)", n->fname);
+            if (kind == sym(funcdesg)) {
+                bprintf(b, "(funcdesg %s)", name);
                 return;
             }
             
-            if (n->kind == sym(func)) {
-                bprintf(b, "(%s)%s(", string_from_type(n->ty), n->fname);
-                njoin(b, n->ty->params, ',');
+            if (kind == sym(func)) {
+                bprintf(b, "(%s)%s(", string_from_type(nty), name);
+                njoin(b, sget(nty, sym(params)), ',');
                 bprintf(b, ")");
-                node2s(b, n->body);
-                return;
-            }
-            if (n->kind ==  sym(goto)) {
-                bprintf(b, "goto(%s)", n->label);
+                node2s(b, sget(n, sym(body)));
                 return;
             }
             
-            if (n->kind ==  sym(decl)){
+            if (kind ==  sym(goto)) {
+                bprintf(b, "goto(%s)", name);
+                return;
+            }
+            
+            if (kind ==  sym(decl)){
                 bprintf(b, "(decl %b %b",
-                        string_from_type(n->declvar->ty),
-                        n->declvar->varname);
-                if (n->declinit) {
+                        string_from_type(sget(n, sym(declvar), sym(type))),
+                        sget(n, sym(declvar), sym(name)));
+                if ( sget(n, sym(declinit))){
                     bprintf(b, " ");
-                    a2s_declinit(b, n->declinit);
+                    a2s_declinit(b, sget(n, sym(init)));
                 }
                 bprintf(b, ")");
                 return;
             }
             
-            if (n->kind ==  sym(init)) {
-                node2s(b, n->initval);
-                bprintf(b, "@%d%b", 
-                        n->initoff,
-                        string_from_type(n->totype));
+            if (kind ==  sym(init)) {
+                node2s(b, sget(n, sym(initval)));
                 return;
             }
 
-            if (n->kind ==  sym(conv)) {
+            if (kind ==  sym(conv)) {
                 bprintf(b, "(conv ");
-                node2s(b, n->operand);
-                bprintf(b, " =>%s)", string_from_type(n->ty));
+                node2s(b, sget(n, sym(operand)));
+                bprintf(b, " =>%s)", string_from_type(nty));
                 return;
             }
             
-            if (n->kind ==  sym(if)) {
+            if (kind ==  sym(if)) {
                 bprintf(b, "(if ");
-                node2s(b, n->cond);
+                node2s(b, sget(n, sym(cond)));
                 bprintf(b, " ");            
-                node2s(b, n->then);
-                if (n->els) {
+                node2s(b, sget(n, sym(then)));
+                value e = sget(n, sym(else));
+                if (e) {
                     bprintf(b, " ");                 
-                    node2s(b, n->els);
+                    node2s(b, e);
                 }
                 bprintf(b, ")");
                 return;
             }
             
-            if (n->kind ==  sym(ternary)) {
+            if (kind ==  sym(ternary)) {
                 bprintf(b, "(? ");
-                node2s(b, n->cond),        
-                    bprintf(b, " ");
-                node2s(b, n->then),        
-                    bprintf(b, " ");
-                node2s(b, n->els);
+                node2s(b, sget(n, sym(cond)));                
+                bprintf(b, " ");
+                node2s(b, sget(n, sym(then)));                
+                bprintf(b, " ");
+                node2s(b, sget(n, sym(els)));                
                 return;
             }
 
-            if (n->kind ==  sym(return)) {
+            if (kind ==  sym(return)) {
                 bprintf(b, "(return ");
-                node2s(b, n->retval);
+                // so many kinds of arguments
+                node2s(b, sget(n, sym(retval)));                                
                 bprintf(b, ")");
                 return;
             }
             
-            if (n->kind ==  sym(compound_stmt)) {
+            if (kind ==  sym(compound_stmt)) {
                 bprintf(b, "{");
-                njoin(b, n->stmts, ';');                
+                njoin(b, sget(n, sym(stmts)), ';');                
                 bprintf(b, "}");
                 return;
             }
             
-            if (n->kind ==  sym(struct_ref)){
-                node2s(b, n->struc);
+            if (kind ==  sym(struct_ref)){
+                node2s(b, sget(n, sym(struc)));
                 bprintf(b, ".");
-                push_buffer(b, n->field);
+                push_buffer(b, sget(n, sym(field)));
                 return;
             }
             
-            if (n->kind ==  sym(cast)) {
+            if (kind ==  sym(cast)) {
                 bprintf(b, "((%b)=>(%b) ",
-                        string_from_type(n->operand->ty),
-                        string_from_type(n->ty));
-                node2s(b, n->operand);
+                        string_from_type(sget(n, sym(operand), sym(type))),
+                        string_from_type(nty));
+                node2s(b, sget(n, sym(operand)));
                 bprintf(b, ")");
                 return;
             }
             
-            if (n->kind ==  sym(label_addr)) {
-                bprintf(b, "&&%s", n->label);
+            if (kind ==  sym(label_addr)) {
+                bprintf(b, "&&%s", name);
                 return;
             }
             
-            if (n->kind == sym(=))
+            if (kind == sym(=))
                 bprintf(b, "(== ");
             else
-                bprintf(b, "(%c ", n->kind);
-            node2s(b, n->left);
+                bprintf(b, "(%c ", kind);
+            node2s(b, sget(n, sym(left)));
             bprintf(b, " ");
-            node2s(b, n->right);
+            node2s(b, sget(n, sym(right)));
             bprintf(b, ")");        
         }
     }

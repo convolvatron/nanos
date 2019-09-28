@@ -1,6 +1,9 @@
 #include <runtime.h>
 
+typedef struct scope *scope;
 
+typedef tuple Type;
+#if 0
 typedef struct Type {
     symbol kind;
     int size;
@@ -19,36 +22,16 @@ typedef struct Type {
     vector params; // params = fields
     boolean hasva;
 } Type;
-
+#endif
 
 typedef struct parse {
     heap h;
     buffer b;
 
     // umm
-    tuple globalenv;
-    tuple localenv;
-    tuple tags;
-    tuple labels;
-    tuple types;
-
-
-    vector toplevels;
-    vector localvars;
-    vector gotos; // ehh
-    vector cases;
-    Type *current_func_type;
-
-    // should be Node?
-    buffer defaultcase;
-    buffer lbreak;
-    buffer lcontinue;
-    
-    Type *type_void, *type_bool, *type_char, *type_short, *type_int;
-    Type  *type_long, *type_llong, *type_uchar, *type_ushort, *type_uint;
-    Type *type_ulong, *type_ullong, *type_enum;
-
-    tuple binops, unops; // spacify
+    scope env;
+    scope file;
+    scope global;    
 } *parse;
 
 
@@ -73,19 +56,17 @@ typedef struct {
     };
 } Token;
 
+typedef tuple Node;
+
+#if 0
 typedef struct Node {
     symbol kind;
-    Type *ty;
+    Type *ty; // -> type
     location sourceLoc;
-    parse p;
+    //    parse p;
     union {
         // Char, int, or long
         long ival;
-        // Float or double
-        struct {
-            double fval;
-            char *flabel;
-        };
         // String
         struct {
             buffer sval;
@@ -130,8 +111,6 @@ typedef struct Node {
         // Initializer
         struct {
             struct Node *initval;
-            int initoff;
-            Type *totype;
         };
         // If statement or ternary operator
         struct {
@@ -156,7 +135,7 @@ typedef struct Node {
         };
     };
 } Node;
-
+#endif
 
 typedef struct {
     int beg;
@@ -179,7 +158,10 @@ boolean is_keyword(Token *tok, symbol c);
 Token *get_token(buffer b);
 
 // parse.c
-boolean is_inttype(Type *ty);
+boolean is_inttype(Type ty);
 void *make_pair(heap h, void *first, void *second);
 tuple parse_init(heap, buffer);
 
+// really sget_internal
+value sget_internal(value p, ...);
+#define sget(first, ...)  sget_internal(first, __VA_ARGS__, INVALID_ADDRESS)
