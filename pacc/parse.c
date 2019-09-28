@@ -53,11 +53,6 @@ string make_label() {
     return aprintf(transient, ".L%d", c++);
 }
 
-static string make_static_label(buffer name) {
-    static int c = 0;
-    return aprintf(transient, ".S%d.%s", c++, name);
-}
-
 static Case *make_case(int beg, int end, buffer label) {
     Case *r = allocate(transient, sizeof(Case));
     r->beg = beg;
@@ -702,7 +697,7 @@ static Type read_rectype_def(parse p, symbol kind) {
 }
 
 
-static int read_bitsize(parse p, buffer name, Type ty) {
+static value read_bitsize(parse p, buffer name, Type ty) {
     if (!is_inttype(ty))
         error("non-integer type cannot be a bitfield: %s", ty2s(ty));
     consume(p);
@@ -714,7 +709,7 @@ static int read_bitsize(parse p, buffer name, Type ty) {
         errort(tok, "invalid bitfield size for %s: %d", ty2s(ty), r);
     if (r == 0 && name != NULL)
         errort(tok, "zero-width bitfield needs to be unnamed: %s", name);
-    return r;
+    return value_from_u64(transient, r);
 }
 
 static vector read_rectype_fields_sub(parse p) {
@@ -732,8 +727,8 @@ static vector read_rectype_fields_sub(parse p) {
             Type fieldtype = read_declarator(p, &name, basetype, NULL, DECL_PARAM_TYPEONLY);
             ensure_not_void(fieldtype);
             fieldtype = copy_type(fieldtype);
-            set(fieldtype, sym(bitsize),
-                next_token(p, colon) ? read_bitsize(p, name, fieldtype) : -1);
+            if (next_token(p, colon))
+                set(fieldtype, sym(bitsize), read_bitsize(p, name, fieldtype));
             vector_push(r, make_pair(p->h, name, fieldtype));
             if (next_token(p, comma))
                 continue;
@@ -2003,13 +1998,15 @@ static Node read_compound_stmt(parse p) {
 
 
 vector read_toplevels(parse p) {
+    vector top = allocate_vector(p->h, 10);
     for (;;) {
         if (token(p)->kind == sym(eof))
             return 0;
         if (is_funcdef(p))
-            vector_push(p->toplevels, read_funcdef(p));
+            // bind?
+            read_funcdef(p);
         else
-            read_decl(p, p->global);
+            read_decl(p, top);
     }
 }
 
