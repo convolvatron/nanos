@@ -74,8 +74,9 @@ static Node ast_binop(parse p, Type ty, symbol kind, Node left, Node right) {
     return timm("kind", kind, "type", ty, "left", left, "right", right);
 }
 
-static Node ast_inttype(parse p, Type ty, long val) {
-    return timm("kind", sym(literal), "type", ty, "ival", value_from_u64(transient, val));
+// not a type - a literal
+static Node ast_inttype(parse p, Type ty, value val) {
+    return timm("kind", sym(literal), "type", ty, "ival", val);
 }
 
 static Node ast_var(scope s, Type ty, symbol name) {
@@ -270,9 +271,10 @@ static void expect(parse p, symbol id) {
         errort(tok, "'%c' expected, but got %s", id, string_from_token(transient, tok));
 }
 
+// eh?
 static Type copy_incomplete_type(Type ty) {
     if (!ty) return 0;
-    return (sget(ty, sym(len)) == -1) ? copy_type(ty) : ty;
+    return (sget(ty, sym(len))) ? ty:copy_type(ty);
 }
 
 value sget_internal(parse p, ...)
@@ -504,8 +506,9 @@ static Type read_enum_def(parse p) {
         
         if (next_token(p, sym(=)))
             val = read_intexpr(p);
-        Node constval = ast_inttype(p, sget(p->global, sym(type), sym(int)), val++);
-        // ?
+        Node constval = ast_inttype(p, sget(p->global, sym(type), sym(int)), val);
+        // increment val
+        //?
         set(sget(p->global, sym(tags)), name, constval);
         if (next_token(p, sym(intern(sstring","))))
             continue;
@@ -548,12 +551,12 @@ static boolean is_poweroftwo(int x) {
 }
 
 
-static int read_alignas(parse p) {
+static value read_alignas(parse p) {
     // C11 6.7.5. Valid form of _Alignof is either _Alignas(type-name) or
     // _Alignas(constant-expression).
     expect(p, open_paren);
-    int r = is_type(p, token(p))
-        ? read_cast_type(p)->align
+    value r = is_type(p, token(p))
+        ? sget(read_cast_type(p), sym(align))
         : read_intexpr(p);
     expect(p, close_paren);
     return r;
@@ -627,9 +630,7 @@ static Type read_decl_spec(parse p, symbol *rsclass) {
             
             if (tok->id == sym(enum))     {if (usertype) goto err; usertype = read_enum_def(p); }
             if (tok->id == sym(alignas)) {
-                int val = read_alignas(p);
-                if (val < 0)
-                    errort(tok, "negative alignment: %d", val);
+                value val = read_alignas(p);
                 // C11 6.7.5p6: alignas(0) should have no effect.
                 if (val != 0) {
                     if (align == -1 || val < align)
@@ -709,9 +710,9 @@ static int read_bitsize(parse p, buffer name, Type ty) {
         error("non-integer type cannot be a bitfield: %s", ty2s(ty));
     consume(p);
     int r = read_intexpr(p);
-    int maxsize = sget(ty, value_from_u64(transient,
-                                          sym(kind) == sym(boolean) ? 1 :
-                                          u64_from_value(sget(ty, sym(size)) * 8)));
+    int maxsize = u64_from_value(sget(ty, value_from_u64(transient,
+                                                         sym(kind) == sym(boolean) ? 1 :
+                                                         u64_from_value(sget(ty, sym(size))) * 8)));
     if (r < 0 || maxsize < r)
         errort(tok, "invalid bitfield size for %s: %d", ty2s(ty), r);
     if (r == 0 && name != NULL)
@@ -1123,7 +1124,7 @@ static void read_array_initializer(parse p, vector inits, Type ty, boolean desig
         skip_to_brace(p);
  finish:
     if (sget(ty, sym(len)) < 0) {
-        set(ty, sym(len), i);
+        set(ty, sym(len), value_from_u64(transient, i));
         set(ty, sym(size), value_from_u64(transient, u64_from_value(elemsize) * i));        
     }
 }
@@ -1598,7 +1599,7 @@ static void read_decl(parse p, vector block) {
             read_static_local_var(p, ty, name);
         } else {
             ensure_not_void(ty);
-            Node var = ast_var((isglobal ? p->global : p->env), ty, name);
+            Node var = ast_var((isglobal ? p->global : p->env), ty, intern(name));
             if (next_token(p, sym(=))) {
                 vector_push(block, ast_decl(var, read_decl_init(p, ty)));
             } else if (sclass != sym(extern) && sget(ty, sym(kind)) != sym(func)) {
@@ -1822,11 +1823,15 @@ static Node make_switch_jump(parse p, Node var, Case *c) {
     Type int_type; // ?    
     if (c->beg == c->end) {
         Type type_int = sget(p->global, sym(type), sym(int));
-        cond = ast_binop(p, type_int, sym(=), var, ast_inttype(p, int_type, c->beg));
+        cond = ast_binop(p, type_int, sym(=), var, ast_inttype(p, int_type,
+                                                               value_from_u64(transient, c->beg)));
     } else {
         // [GNU] case i ... j is compiled to if (i <= cond && cond <= j) goto <label>.
-        Node x = ast_binop(p, int_type, sym(<=), ast_inttype(p, int_type, c->beg), var);
-        Node y = ast_binop(p, int_type, sym(<=), var, ast_inttype(p, int_type, c->end));
+        Node x = ast_binop(p, int_type, sym(>=), ast_inttype(p, int_type,
+                                                             value_from_u64(transient, c->beg)),
+                           var);
+        Node y = ast_binop(p, int_type, sym(<=), var, ast_inttype(p, int_type,
+                                                                  value_from_u64(transient, c->end)));
         cond = ast_binop(p, int_type, sym(logand), x, y);
     }
     return ast_if(cond, ast_jump(c->label), NULL);
@@ -1928,7 +1933,7 @@ static Node read_return_stmt(parse p) {
     Node retval = read_comma_expr(p);
     expect(p, semicolon);
     if (retval)
-        return ast_return(ast_conv(sget(p->env, sym(__return_type), retval)));
+        return ast_return(ast_conv(sget(p->env, sym(__return_type)), retval));
     return ast_return(NULL);
 }
 
@@ -1957,7 +1962,7 @@ static Node read_label(parse p, Token *tok)
     if (sget(p->env, sym(labels), intern(label)))
         errort(tok, "duplicate label: %s", tok2s(tok));
     Node r = ast_label(label);
-    set(p->labels, label, r);
+    set(sget(p, sym(labels)), sym(label), r);
     return read_label_tail(p, r);
 }
 
@@ -2006,7 +2011,7 @@ vector read_toplevels(parse p) {
         if (is_funcdef(p))
             vector_push(p->toplevels, read_funcdef(p));
         else
-            read_decl(p, p->global, true);
+            read_decl(p, p->global);
     }
 }
 
@@ -2023,31 +2028,37 @@ static void concatenate_string(parse p, Token *tok) {
 }
 #endif
 static void define_builtin(parse p, buffer name, Type rettype, vector paramtypes) {
-    ast_gvar(p, make_func_type(rettype, paramtypes, false), name);
+    ast_var(p->global, make_func_type(rettype, paramtypes, false), intern(name));
+}
+
+void make_numeric_type(scope s, symbol name, int length, boolean issigned)
+{
+    
 }
 
 // should be streaming..staying away from conts
 tuple parse_init(heap h, buffer b) {
     parse p = allocate(h, sizeof(struct parse));
     p->b =b ;
-    p->type_void = &(Type){ sym(void), 0, 0, false };    
-    Type v = make_ptr_type(p->type_void);
+    // chained set
+    Type vt = timm("kind", sym(void));
+    set(sget(p->global, sym(types)), sym(void), vt);
+    Type v = make_ptr_type(vt);
     vector voidptr = build_vector(h, v);
     vector two_voidptrs = build_vector(h, v, v);
-#if 0
-    p->type_bool = &(Type){ sym(boolean), 1, 1, true };
-    p->type_char = &(Type){ sym(char), 1, 1, false };
-    p->type_short = &(Type){ sym(short), 2, 2, false };
-    p->type_int = &(Type){ sym(int), 4, 4, false };
-    p->type_long = &(Type){ sym(long), 8, 8, false };
-    p->type_llong = &(Type){ sym(llong), 8, 8, false };
-    p->type_uchar = &(Type){ sym(char), 1, 1, true };
-    p->type_ushort = &(Type){ sym(short), 2, 2, true };
-    p->type_uint = &(Type){ sym(int), 4, 4, true };
-    p->type_ulong = &(Type){ sym(long), 8, 8, true };
-    p->type_ullong = &(Type){ sym(llong), 8, 8, true };
-    p->type_enum = &(Type){ sym(enum), 4, 4, false };
-#endif
+
+    make_numeric_type(p->global, sym(boolean), 1, false);
+    make_numeric_type(p->global, sym(char), 8, true);
+    make_numeric_type(p->global, sym(short), 16, true);
+    make_numeric_type(p->global, sym(int), 32, true);
+    make_numeric_type(p->global, sym(long), 64, true);
+    make_numeric_type(p->global, sym(llong), 128, true);
+    make_numeric_type(p->global, sym(uchar), 8, false);
+    make_numeric_type(p->global, sym(ushort), 16, false);
+    make_numeric_type(p->global, sym(uint), 32, false);
+    make_numeric_type(p->global, sym(ulong), 64, false);
+    make_numeric_type(p->global, sym(ullong), 128, false);
+
     open_paren = intern(staticbuffer("("));
     close_paren = intern(staticbuffer(")"));
     open_brace = intern(staticbuffer("{"));        
@@ -2060,8 +2071,8 @@ tuple parse_init(heap h, buffer b) {
 
     define_builtin(p, staticbuffer("__builtin_return_address"), v, voidptr);
     define_builtin(p, staticbuffer("__builtin_reg_class"), p->type_int, voidptr);
-    define_builtin(p, staticbuffer("__builtin_va_arg"), p->type_void, two_voidptrs);
-    define_builtin(p, staticbuffer("__builtin_va_start"), p->type_void, voidptr);
+    define_builtin(p, staticbuffer("__builtin_va_arg"), vt, two_voidptrs);
+    define_builtin(p, staticbuffer("__builtin_va_start"), vt, voidptr);
     p->global = p->env = allocate_scope(h, 0);
     read_toplevels(p);
     return 0;

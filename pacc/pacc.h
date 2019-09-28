@@ -153,15 +153,12 @@ tuple parse_init(heap h, buffer b);
 void errorf(char *line, char *pos, char *fmt, ...);
 void warnf(char *line, char *pos, char *fmt, ...);
 
-// lex.c
 boolean is_keyword(Token *tok, symbol c);
 Token *get_token(buffer b);
 
-// parse.c
-boolean is_inttype(Type ty);
-void *make_pair(heap h, void *first, void *second);
 tuple parse_init(heap, buffer);
 
-// really sget_internal
 value sget_internal(value p, ...);
 #define sget(first, ...)  sget_internal(first, __VA_ARGS__, INVALID_ADDRESS)
+
+scope allocate_scope(heap h, scope parent);
