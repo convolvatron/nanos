@@ -31,5 +31,8 @@ static inline value value_from_u64(heap h, u64 v)
     return result;
 }
 
-#define get(_t, _k) table_find(_t, _k)
-#define set(_t, _k, _v) table_set(_t, _k, _v)
+
+value get(value, symbol);
+value set(value, symbol, value);
+//#define get(_t, _k) table_find(_t, _k)
+//#define set(_t, _k, _v) table_set(_t, _k, _v)

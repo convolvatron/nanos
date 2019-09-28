@@ -81,7 +81,7 @@ static Node ast_inttype(parse p, Type ty, value val) {
 
 static Node ast_var(scope s, Type ty, symbol name) {
     Node r = timm("kind", sym(variable), "type", ty, "name", name);
-    scope_set(s, name, r); //xx
+    set(s, name, r);
     return r;
 }
 
@@ -119,10 +119,10 @@ static Node ast_funcdesg(Type ty, string fname)
 static Node ast_funcptr_call(Node fptr, vector args) {
     assert(sget(fptr, sym(type), sym(kind)) == sym(ptr));
     assert(sget(fptr, sym(type), sym(ptr), sym(kind)) == sym(func));
-    timm("kind",  sym(funcptr_call), "type",
-         sget(fptr, sym(type), sym(ptr), sym(rettype)),
-         "fptr", fptr,
-         "args", args);
+    return timm("kind",  sym(funcptr_call), "type",
+                sget(fptr, sym(type), sym(ptr), sym(rettype)),
+                "fptr", fptr,
+                "args", args);
 }
 
 // location?
@@ -277,12 +277,6 @@ static Type copy_incomplete_type(Type ty) {
     return (sget(ty, sym(len))) ? ty:copy_type(ty);
 }
 
-value sget_internal(parse p, ...)
-{
-    return 0;
-}
-
-
 static Type get_typedef(parse p, symbol name) {
     Node node = sget(p, sym(types), name);
     return (node && (sget(node, sym(kind)) == sym(typedef))) ? sget(node, sym("type")) : NULL;
@@ -315,8 +309,8 @@ void *make_pair(heap h, void *first, void *second) {
     return r;
 }
 
-static Node conv(Node node) {
-    Type int_type; // ?
+static Node conv(parse p, Node node) {
+    Type int_type = sget(p->global, sym(type), sym(int)); // ?
     Type ty = sget(node, sym(type));
     symbol kind = sget(ty, sym(kind));
     if (kind == sym(array))
@@ -493,7 +487,7 @@ static Type read_enum_def(parse p) {
     }
     consume(p);
     if (tag)
-        set(sget(p, sym(tags)), tag, sget(p->global, sym(type), sym(enum)));
+        set(sget(p, sym(tags)), intern(tag), sget(p->global, sym(type), sym(enum)));
     
     int val = 0;
     for (;;) {
@@ -506,10 +500,11 @@ static Type read_enum_def(parse p) {
         
         if (next_token(p, sym(=)))
             val = read_intexpr(p);
-        Node constval = ast_inttype(p, sget(p->global, sym(type), sym(int)), val);
+        Node constval = ast_inttype(p, sget(p->global, sym(type), sym(int)),
+                                    value_from_u64(transient, val));
         // increment val
         //?
-        set(sget(p->global, sym(tags)), name, constval);
+        set(sget(p->global, sym(tags)), intern(name), constval);
         if (next_token(p, sym(intern(sstring","))))
             continue;
         if (next_token(p, close_brace))
@@ -550,7 +545,7 @@ static boolean is_poweroftwo(int x) {
     return (x <= 0) ? false : !(x & (x - 1));
 }
 
-
+#if 0
 static value read_alignas(parse p) {
     // C11 6.7.5. Valid form of _Alignof is either _Alignas(type-name) or
     // _Alignas(constant-expression).
@@ -561,7 +556,7 @@ static value read_alignas(parse p) {
     expect(p, close_paren);
     return r;
 }
-
+#endif
 static Type read_rectype_def(parse p, symbol kind);
 
 static Type read_decl_spec(parse p, symbol *rsclass) {
@@ -629,14 +624,16 @@ static Type read_decl_spec(parse p, symbol *rsclass) {
                 {if (usertype) goto err; usertype = read_rectype_def(p, tok->id); }
             
             if (tok->id == sym(enum))     {if (usertype) goto err; usertype = read_enum_def(p); }
+#if 0
             if (tok->id == sym(alignas)) {
-                value val = read_alignas(p);
+                value nval = read_alignas(p);
                 // C11 6.7.5p6: alignas(0) should have no effect.
-                if (val != 0) {
+                if (nval != 0) {
                     if (align == -1 || val < align)
-                        align = val;
+                        align = nval;
                 }
             }
+#endif            
             if (tok->id == sym(long)) {
                 if (size == 0) size = sym(long);
                 else if (size == sym(long)) size = sym(llong);
@@ -692,7 +689,7 @@ static Type read_rectype_def(parse p, symbol kind) {
             error("declarations of %s does not match", tag);
         if (!r) {
             r = timm("kind", kind);
-            set(sget(p->global, sym(tags)), tag, r);
+            set(sget(p->global, sym(tags)), intern(tag), r);
         }
     } else {
         r =  timm("kind", kind);
@@ -735,7 +732,8 @@ static vector read_rectype_fields_sub(parse p) {
             Type fieldtype = read_declarator(p, &name, basetype, NULL, DECL_PARAM_TYPEONLY);
             ensure_not_void(fieldtype);
             fieldtype = copy_type(fieldtype);
-            set(fieldtype, sym(bitsize), next_token(p, colon) ? read_bitsize(p, name, fieldtype) : -1);
+            set(fieldtype, sym(bitsize),
+                next_token(p, colon) ? read_bitsize(p, name, fieldtype) : -1);
             vector_push(r, make_pair(p->h, name, fieldtype));
             if (next_token(p, comma))
                 continue;
@@ -794,7 +792,7 @@ static vector read_func_args(parse p,  vector params) {
     int i = 0;
     for (;;) {
         if (next_token(p, close_paren)) break;
-        Node arg = conv(read_assignment_expr(p));
+        Node arg = conv(p, read_assignment_expr(p));
         Type ty = sget(arg, sym(type));
         Type paramtype;
         if (i < vector_length(params)) {
@@ -901,7 +899,7 @@ static Node read_primary_expr(parse p) {
     //    if (tok->kind == sym(number))     
     //        return read_int(p, tok);
     if (tok->kind == sym(char))         
-        return ast_inttype(p, sget(p->global, sym(type), sym(char)), tok->c);
+        return ast_inttype(p, sget(p->global, sym(type), sym(char)), value_from_u64(transient, tok->c));
     if (tok->kind == sym(string))             
         return ast_string(p, tok->sval);
 
@@ -917,7 +915,7 @@ static Node read_subscript_expr(parse p, Node node) {
     if (!sub)
         errort(tok, "subscription expected");
     expect(p, close_bracket);
-    Node t = binop(p, sym(+), conv(node), conv(sub));
+    Node t = binop(p, sym(+), conv(p, node), conv(p, sub));
     return ast_uop(sym(deref), sget(t, sym(type), sym(ptr)), t);
 }
 
@@ -928,7 +926,7 @@ static Node read_postfix_expr_tail(parse p, Node node) {
     for (;;) {
         if (next_token(p, open_paren)) {
             consume(p);
-            node = conv(node);
+            node = conv(p, node);
             Type t = sget(node, sym(type));
             if (sget(node, sym(kind)) != sym(ptr) || sget(t, sym(ptr), sym(kind) != sym(func)))
                 errort(tok, "function expected, but got %s", node2s(node));
@@ -968,7 +966,7 @@ static Node read_postfix_expr(parse p) {
  
 static Node read_unary_incdec(parse p, symbol op) {
     Node operand = read_unary_expr(p);
-    operand = conv(operand);
+    operand = conv(p, operand);
     ensure_lvalue(operand);
     return ast_uop(op, sget(operand, sym(type)), operand);
 }
@@ -989,13 +987,13 @@ static Node read_cast_expr(parse p);
 static Node read_unary_addr(parse p) {
     Node operand = read_cast_expr(p);
     if (sget(operand, sym(kind)) == sym(funcdesg))
-        return conv(operand);
+        return conv(p, operand);
     ensure_lvalue(operand);
     return ast_uop(sym(addr), make_ptr_type(sget(operand, sym(type))), operand);
 }
 
 static Node read_unary_deref(parse p, Token *tok) {
-    Node operand = conv(read_cast_expr(p));
+    Node operand = conv(p, read_cast_expr(p));
     Type ot = sget(operand, sym(type));
     if (sget(ot,sym(kind)) != sym(ptr))
         errort(tok, "pointer type expected, but got %s", node2s(operand));
@@ -1007,12 +1005,12 @@ static Node read_unary_deref(parse p, Token *tok) {
 static Node read_unary_minus(parse p) {
     Node expr = read_cast_expr(p);
     ensure_inttype(expr);
-    return binop(p, sym(-), conv(ast_inttype(p, sget(expr, sym(type)), 0)), conv(expr));
+    return binop(p, sym(-), conv(p, ast_inttype(p, sget(expr, sym(type)), 0)), conv(p, expr));
 }
 
 static Node read_unary_bitnot(parse p, Token *tok) {
     Node expr = read_cast_expr(p);
-    expr = conv(expr);
+    expr = conv(p, expr);
     Type et = sget(expr, sym(type));
     if (!is_inttype(et))
         errort(tok, "invalid use of ~: %s", node2s(expr));
@@ -1021,7 +1019,7 @@ static Node read_unary_bitnot(parse p, Token *tok) {
 
 static Node read_unary_lognot(parse p) {
     Node operand = read_cast_expr(p);
-    operand = conv(operand);
+    operand = conv(p, operand);
     return ast_uop(sym(!), sget(p->global, sym(type), sym(int)), operand);
 }
 
@@ -1203,7 +1201,7 @@ static vector read_decl_init(parse p, Type ty) {
     if (is_keyword(token(p), open_brace) || is_string(ty)) {
         read_initializer_list(p, r, ty, false);
     } else {
-        Node init = conv(read_assignment_expr(p));
+        Node init = conv(p, read_assignment_expr(p));
         if (is_inttype(sget(init, sym(type))) && sget(init, sym(type), sym(kind)) != sget(ty, sym(kind)))
             init = ast_conv(ty, init);
         vector_push(r, ast_init(init, ty));
@@ -1238,9 +1236,9 @@ static Node read_cast_expr(parse p) {
 static Node read_multiplicative_expr(parse p) {
     Node node = read_cast_expr(p);
     for (;;) {
-        if (next_token(p, sym(*)))      node = binop(p, sym(*), conv(node), conv(read_cast_expr(p)));
-        else if (next_token(p, sym(/))) node = binop(p, sym(/), conv(node), conv(read_cast_expr(p)));
-        else if (next_token(p, sym(%))) node = binop(p, sym(%), conv(node), conv(read_cast_expr(p)));
+        if (next_token(p, sym(*)))      node = binop(p, sym(*), conv(p, node), conv(p, read_cast_expr(p)));
+        else if (next_token(p, sym(/))) node = binop(p, sym(/), conv(p, node), conv(p, read_cast_expr(p)));
+        else if (next_token(p, sym(%))) node = binop(p, sym(%), conv(p, node), conv(p, read_cast_expr(p)));
         else    return node;
     }
 }
@@ -1248,9 +1246,9 @@ static Node read_multiplicative_expr(parse p) {
 static Node read_additive_expr(parse p) {
     Node node = read_multiplicative_expr(p);
     for (;;) {
-        if      (next_token(p, sym(+))) node = binop(p, sym(+), conv(node), conv(read_multiplicative_expr(p)));
-        else if (next_token(p, sym(-))) node = binop(p, sym(-), conv(node), conv(read_multiplicative_expr(p)));
-        else    return node;
+        if (next_token(p, sym(+))) node = binop(p, sym(+), conv(p, node), conv(p, read_multiplicative_expr(p)));
+        else if (next_token(p, sym(-))) node = binop(p, sym(-), conv(p, node), conv(p, read_multiplicative_expr(p)));
+        else  return node;
     }
 }
 
@@ -1267,7 +1265,7 @@ static Node read_shift_expr(parse p) {
         Node right = read_additive_expr(p);
         ensure_inttype(node);
         ensure_inttype(right);
-        node = ast_binop(p, sget(node, sym(type)), op, conv(node), conv(right));
+        node = ast_binop(p, sget(node, sym(type)), op, conv(p, node), conv(p, right));
     }
     return node;
 }
@@ -1275,10 +1273,10 @@ static Node read_shift_expr(parse p) {
 static Node read_relational_expr(parse p) {
     Node node = read_shift_expr(p);
     for (;;) {
-        if      (next_token(p, sym(<)))   node = binop(p, sym('<'),  conv(node), conv(read_shift_expr(p)));
-        else if (next_token(p, sym(>)))   node = binop(p, sym('>'),  conv(read_shift_expr(p)), conv(node));
-        else if (next_token(p, sym(<=))) node = binop(p, sym(<=), conv(node), conv(read_shift_expr(p)));
-        else if (next_token(p, sym(>=))) node = binop(p, sym(>=), conv(read_shift_expr(p)), conv(node));
+        if      (next_token(p, sym(<)))   node = binop(p, sym('<'),  conv(p, node), conv(p, read_shift_expr(p)));
+        else if (next_token(p, sym(>)))   node = binop(p, sym('>'),  conv(p, read_shift_expr(p)), conv(p, node));
+        else if (next_token(p, sym(<=))) node = binop(p, sym(<=), conv(p, node), conv(p, read_shift_expr(p)));
+        else if (next_token(p, sym(>=))) node = binop(p, sym(>=), conv(p, read_shift_expr(p)), conv(p, node));
         else    return node;
         set(node, sym(type), sget(p->global, sym(type), sym(int)));
     }
@@ -1288,9 +1286,9 @@ static Node read_equality_expr(parse p) {
     Node node = read_relational_expr(p);
     Node r;
     if (next_token(p, sym(==))) {
-        r = binop(p, sym(==), conv(node), conv(read_equality_expr(p)));
+        r = binop(p, sym(==), conv(p, node), conv(p, read_equality_expr(p)));
     } else if (next_token(p, sym(!=))) {
-        r = binop(p, sym(!=), conv(node), conv(read_equality_expr(p)));
+        r = binop(p, sym(!=), conv(p, node), conv(p, read_equality_expr(p)));
     } else {
         return node;
     }
@@ -1301,21 +1299,21 @@ static Node read_equality_expr(parse p) {
 static Node read_bitand_expr(parse p) {
     Node node = read_equality_expr(p);
     while (next_token(p, sym(&)))
-        node = binop(p, sym(&), conv(node), conv(read_equality_expr(p)));
+        node = binop(p, sym(&), conv(p, node), conv(p, read_equality_expr(p)));
     return node;
 }
 
 static Node read_bitxor_expr(parse p) {
     Node node = read_bitand_expr(p);
     while (next_token(p,sym(^)))
-        node = binop(p, sym(^), conv(node), conv(read_bitand_expr(p)));
+        node = binop(p, sym(^), conv(p, node), conv(p, read_bitand_expr(p)));
     return node;
 }
 
 static Node read_bitor_expr(parse p) {
     Node node = read_bitxor_expr(p);
     while (next_token(p, sym(|)))
-        node = binop(p, sym(|), conv(node), conv(read_bitxor_expr(p)));
+        node = binop(p, sym(|), conv(p, node), conv(p, read_bitxor_expr(p)));
     return node;
 }
 
@@ -1336,9 +1334,9 @@ static Node read_logor_expr(parse p) {
 static Node read_conditional_expr(parse p);
 
 static Node do_read_conditional_expr(parse p, Node cond) {
-    Node then = conv(read_comma_expr(p));
+    Node then = conv(p, read_comma_expr(p));
     expect(p, sym(:));
-    Node els = conv(read_conditional_expr(p));
+    Node els = conv(p, read_conditional_expr(p));
     // [GNU] Omitting the middle operand is allowed.
     Type t = then ? sget(then, sym(type)): sget(cond, sym(type));
     Type u = sget(els, sym(ty));
@@ -1366,10 +1364,10 @@ static Node read_assignment_expr(parse p) {
         return do_read_conditional_expr(p, node);
     symbol cop = get_compound_assign_op(tok);
     if (is_keyword(tok, sym(=)) || cop) {
-        Node value = conv(read_assignment_expr(p));
+        Node value = conv(p, read_assignment_expr(p));
         if (is_keyword(tok, sym(=)) || cop)
             ensure_lvalue(node);
-        Node right = cop ? binop(p, cop, conv(node), value) : value;
+        Node right = cop ? binop(p, cop, conv(p, node), value) : value;
         Type ty = sget(node, sym(type));
         if (is_inttype(ty) && sget(ty, sym(kind)) != sget(right, sym(ty), sym(kind)))
             right = ast_conv(ty, right);
@@ -1402,7 +1400,7 @@ static void read_initializer_elem(parse p, vector inits, Type ty, boolean design
         read_initializer_elem(p, inits, ty, true);
         expect(p, close_brace);
     } else {
-        Node expr = conv(read_assignment_expr(p));
+        Node expr = conv(p, read_assignment_expr(p));
         ensure_assignable(ty, sget(expr, sym(type)));
         vector_push(inits, ast_init(expr, ty));
     }
@@ -1593,7 +1591,7 @@ static void read_decl(parse p, vector block) {
         // xxx - are all typedefs always global?
         if (sclass == sym(typedef)) {
             Node r = timm("kind", sym(typedef), "type", ty);
-            set(p->global, name, r);            
+            set(p->global, intern(name), r);            
         } else if (isstatic && !isglobal) {
             ensure_not_void(ty);
             read_static_local_var(p, ty, name);
@@ -1616,8 +1614,8 @@ static void read_decl(parse p, vector block) {
 static Node read_func_body(parse p, Type functype, buffer fname, vector params) {
     push_scope(p); // functype? what about params?
     Node funcname = ast_string(p, fname);
-    set(p->env, "__func__", funcname);
-    set(p->env, "__FUNCTION__", funcname);
+    set(p->env, sym(__func__), funcname);
+    set(p->env, sym(__FUNCTION__), funcname);
     Node body = read_compound_stmt(p);
     Node r = ast_func(functype, fname, params, body, p->env);
     pop_scope(p);    
@@ -1820,7 +1818,7 @@ static Node read_do_stmt(parse p) {
 
 static Node make_switch_jump(parse p, Node var, Case *c) {
     Node cond;
-    Type int_type; // ?    
+    Type int_type = sget(p, sym(type), sym(int)); // ?    
     if (c->beg == c->end) {
         Type type_int = sget(p->global, sym(type), sym(int));
         cond = ast_binop(p, type_int, sym(=), var, ast_inttype(p, int_type,
@@ -1853,7 +1851,7 @@ static void check_case_duplicates(vector cases) {
 static Node read_switch_stmt(parse p)
 {
     expect(p, open_paren);
-    Node expr = conv(read_expr(p));
+    Node expr = conv(p, read_expr(p));
     ensure_inttype(expr);
     expect(p, close_paren);
 
@@ -2070,7 +2068,9 @@ tuple parse_init(heap h, buffer b) {
     colon = intern(staticbuffer(":"));
 
     define_builtin(p, staticbuffer("__builtin_return_address"), v, voidptr);
-    define_builtin(p, staticbuffer("__builtin_reg_class"), p->type_int, voidptr);
+    define_builtin(p, staticbuffer("__builtin_reg_class"),
+                   sget(p, sym(types), sym(int)),
+                   voidptr);
     define_builtin(p, staticbuffer("__builtin_va_arg"), vt, two_voidptrs);
     define_builtin(p, staticbuffer("__builtin_va_start"), vt, voidptr);
     p->global = p->env = allocate_scope(h, 0);
