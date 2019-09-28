@@ -209,3 +209,4 @@ status_handler apply_merge(merge m);
 void __stack_chk_guard_init();
 
 #define _countof(a) (sizeof(a) / sizeof(*(a)))
+#include <method.h>
