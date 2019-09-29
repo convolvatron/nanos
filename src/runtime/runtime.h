@@ -141,7 +141,7 @@ typedef void *value;
 #define tag_symbol (1ull)
 #define tag_tuple (2ull)
 #define tag_string (3ull)
-#define tag_buffer_promise (4ull) //?
+#define tag_method_rewind (4ull)
 #define tag_max (5ull)
 
 #include <symbol.h>
@@ -209,4 +209,5 @@ status_handler apply_merge(merge m);
 void __stack_chk_guard_init();
 
 #define _countof(a) (sizeof(a) / sizeof(*(a)))
+
 #include <method.h>

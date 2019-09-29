@@ -88,3 +88,18 @@ static inline u64 lsb(u64 x)
 {
     return ((s64)__builtin_ffsll(x)) - 1;
 }
+
+#define user_va_tag_offset 44
+#ifdef STAGE3
+#define va_tag_offset 40        /* 1TB */
+#else
+#define va_tag_offset user_va_tag_offset
+#endif
+
+static inline void* tag(void* v, u64 tval) {
+  return pointer_from_u64((tval << va_tag_offset) | u64_from_pointer(v));
+}
+
+static inline u16 tagof(void* v) {
+  return (u64_from_pointer(v) >> va_tag_offset);
+}
