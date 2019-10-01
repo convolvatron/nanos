@@ -26,9 +26,28 @@ void tset(value m, symbol b, value v)
 void tformat(buffer b, value m)
 {
 }
-    
+
+static CLOSURE_5_0(teach, void, heap, table, int, entry, each);
+static void teach(heap h, table t, int slot, entry e, each n)
+{
+    entry ne = e->next;
+    if (slot > t->buckets) {
+        apply(n, INVALID_ADDRESS, INVALID_ADDRESS, INVALID_ADDRESS);
+    } else {
+        thunk nt= closure(h, teach, h, t, slot, ne, n);
+        if (e) {
+            apply(n, ne->c, ne->v, nt);
+        } else {
+            teach(h, t, slot+1, t->entries[slot], n);
+        }
+    }
+}
+
+// we're assuming there aren't any structural changes during the iteration
 void titerate(heap h, value v, each e)
 {
+    table t = (table)v;
+    closure(h, teach, h, (table)v, 1, t->entries[0], e);
 }
 
 static struct methods _tm = {tget, tset, titerate, tformat, telements};
