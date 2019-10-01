@@ -1,8 +1,8 @@
 typedef void *(*m_get)(value m, symbol b);
 typedef void *(*m_set)(value m, symbol b, value v);
 typedef u64 (*m_elements)(value m);
-typedef string (*m_format)(heap h, value m);
-typedef void (*each)(value k, value v, thunk next);
+typedef string (*m_format)(buffer b, value m);
+typedef closure_type(each, void, value, value, thunk);
 typedef void (*m_iterate)(heap h, value v, each e);
 
 typedef struct methods {
@@ -24,28 +24,23 @@ static inline methods methods_of(value v)
     if (tagof(v) == tag_method_rewind) {
         return ((methods)v - 1);
     }
-    
     halt("find methods for non-value");
 }
 
 #define get(__m, __k) (methods_of(__m)->get)(__m, __k)
 #define set(__m, __k, __v) (methods_of(__m)->set)(__m, __k, __v)
 #define elements(__m) (methods_of(__m)->elements)(__m)
-#define format(__h, __m)  (methods_of(__m)->format)(__h, __m)
+#define vformat(__b, __m)  (methods_of(__m)->format)(__b, __m)
 #define iterate(__h, __m, __e) (methods_of(__m)->iterate)(__h, __m, __e)
 
-static inline void iterator_each(value *pk, value *pv, thunk *pnext, 
-                                 value k, value v, thunk next)
-{
-    *pk = k;
-    *pv = v;
-    *pnext = next;
-}
+each close_each_copy(heap h, value *, value *, thunk *);
 
-#define foreach(__m, __k, __v)\
-  for (void *__k = 0, *__v, *__pnext, *resume,\
-           *it=specialize(transient, iterator_each, 6, &__k, &__v, &__pnext);__k != INVALID;) \
-      for(iterate(transient, __m, it); __k != INVALID; ((thunk)__pnext)())
+// we increment n here at the end because the compiler isn't getting
+// confused that the condition is being modified outside the loop body..
+#define foreach(__m, __k, __v)                  \
+    for (void *__k = 0, *__v, *__pnext,                         \
+             *it=close_each_copy(transient, &__k, &__v, (thunk *)&__pnext);__k != INVALID_ADDRESS;) \
+        for(iterate(transient, __m, (each)it); __k != INVALID_ADDRESS; apply((thunk)__pnext), n++)
 
 
 static inline value allocate_method_rewind(heap h, bytes size,

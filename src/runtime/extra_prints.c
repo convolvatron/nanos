@@ -1,6 +1,5 @@
 #include <runtime.h>
 
-
 static char *hex_digit="0123456789abcdef";
 void print_byte(buffer s, u8 f)
 {
@@ -47,17 +46,12 @@ void print_tuple(buffer b, tuple z)
     table t = valueof(z);
     boolean sub = false;
     bprintf(b, "(");
-    table_foreach(t, n, v) {
+    foreach(t, n, v) {
         if (sub) {
             push_character(b, ' ');
         }
         bprintf(b, "%b:", symbol_string((symbol)n));
-        // xxx print value
-        if (tagof(v) == tag_tuple) {
-            print_tuple(b, v);
-        } else {
-            bprintf(b, "%b", v);
-        }
+        vformat(b, v);
         sub = true;
     }
     bprintf(b, ")");
@@ -99,34 +93,11 @@ void print_root(buffer b, tuple z)
     _print_root(b, z, 0, true);
 }
 
-static void format_tuple(buffer dest, struct formatter_state *s, vlist *v)
-{
-    print_tuple(dest, varg(*v, tuple));
-}
 
 static void format_value(buffer dest, struct formatter_state *s, vlist *v)
 {
-    buffer b;
-    value x = varg(*v, value);
-    if (!x) {
-        bprintf(dest, "(none)");
-        return;
-    }
-
-    switch(tagof(x)) {
-    case tag_tuple:
-        print_tuple(dest, (tuple)x);
-        break;
-    case tag_symbol:
-        bprintf(dest, "%b", symbol_string((symbol)x));
-        break;
-    default:
-        b = (buffer)x;
-        if (buffer_length(b) > 20)
-            bprintf(dest, "{buffer %d}", buffer_length(b));
-        else
-            bprintf(dest, "%b", b);
-    }
+    value x = varg(*v, tuple);
+    vformat(dest, x);
 }
 
 static void format_hex_buffer(buffer dest, struct formatter_state *s, vlist *a)
@@ -155,7 +126,6 @@ static void format_range(buffer dest, struct formatter_state *s, vlist *a)
 
 void init_extra_prints()
 {
-    register_format('t', format_tuple, 0);
     register_format('v', format_value, 0);
     register_format('X', format_hex_buffer, 0);
     register_format('T', format_timestamp, 0);
