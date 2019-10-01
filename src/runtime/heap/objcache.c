@@ -64,7 +64,7 @@ static inline page page_from_footer(objcache o, footer f)
 static inline footer footer_from_page(objcache o, page p)
 {
     /* XXX assert low order bits of p are clear */
-    return (footer)(p + page_size(o) - sizeof(struct footer));
+    return (footer)(unsigned long)(p + page_size(o) - sizeof(struct footer));
 }
 
 static inline u64 obj_from_index(objcache o, page p, u16 i)

@@ -8,6 +8,32 @@ thunk ignore;
 status_handler ignore_status;
 static char *hex_digits="0123456789abcdef";
 
+// these two should be asynchronous? dont you think?
+value tget(value m, symbol b)
+{
+    return 0;
+}
+
+u64 telements(value m)
+{
+    return 0;
+}
+
+void tset(value m, symbol b, value v)
+{
+}
+
+void tformat(buffer b, value m)
+{
+}
+    
+void titerate(heap h, value v, each e)
+{
+}
+
+static struct methods _tm = {tget, tset, titerate, tformat, telements};
+methods tuple_methods;
+
 void print_u64(u64 s)
 {
     buffer b = little_stack_buffer(16);
@@ -100,6 +126,7 @@ void init_runtime(kernel_heaps kh)
     ignore = closure(h, ignore_body);
     ignore_status = (void*)ignore;
     errheap = h;
+    tuple_methods = &_tm;
     initialize_timers(kh);
 }
 

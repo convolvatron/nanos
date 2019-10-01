@@ -1,7 +1,7 @@
 typedef void *(*m_get)(value m, symbol b);
-typedef void *(*m_set)(value m, symbol b, value v);
+typedef void (*m_set)(value m, symbol b, value v);
 typedef u64 (*m_elements)(value m);
-typedef string (*m_format)(buffer b, value m);
+typedef void (*m_format)(buffer b, value m);
 typedef closure_type(each, void, value, value, thunk);
 typedef void (*m_iterate)(heap h, value v, each e);
 
@@ -13,7 +13,7 @@ typedef struct methods {
     m_elements elements;                
 } *methods;
 
-methods tuple_methods;
+extern methods tuple_methods;
 
 static inline methods methods_of(value v)
 {
