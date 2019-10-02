@@ -16,27 +16,32 @@ value tget(value m, symbol b)
 
 u64 telements(value m)
 {
+    table_elements((table)m);
     return 0;
 }
 
 void tset(value m, symbol b, value v)
 {
+    table_set((table)m, b, v);
 }
+
 
 void tformat(buffer b, value m)
 {
+    print_tuple(b, m);
 }
 
+// avoid one closure per iteration
 static CLOSURE_5_0(teach, void, heap, table, int, entry, each);
 static void teach(heap h, table t, int slot, entry e, each n)
 {
-    entry ne = e->next;
+    rprintf("actually calling teah\n");    
     if (slot > t->buckets) {
         apply(n, INVALID_ADDRESS, INVALID_ADDRESS, INVALID_ADDRESS);
     } else {
-        thunk nt= closure(h, teach, h, t, slot, ne, n);
         if (e) {
-            apply(n, ne->c, ne->v, nt);
+            thunk nt = closure(h, teach, h, t, slot, e->next, n);            
+            apply(n, e->c, e->v, nt);
         } else {
             teach(h, t, slot+1, t->entries[slot], n);
         }
@@ -47,7 +52,8 @@ static void teach(heap h, table t, int slot, entry e, each n)
 void titerate(heap h, value v, each e)
 {
     table t = (table)v;
-    closure(h, teach, h, (table)v, 1, t->entries[0], e);
+    rprintf("actually calling titerate\n");
+    teach(h, (table)v, 1, t->entries[0], e);
 }
 
 static struct methods _tm = {tget, tset, titerate, tformat, telements};

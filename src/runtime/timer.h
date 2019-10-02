@@ -25,25 +25,40 @@ static inline timestamp seconds(u64 n)
 {
     return n * TIMESTAMP_SECOND;
 }
+#ifdef BOOT
+static inline u32 diva (u64 n, u32 d)
+{
+    u32 n1 = n >> 32;
+    u32 n0 = n;
+    u32 q, r;
 
+    asm ("divl %4"
+         : "=d" (r), "=a" (q)
+         : "0" (n1), "1" (n0), "rm" (d));
+
+    return q;
+}
+#else
+#define diva(a, b) ((a)/(b))
+#endif
 static inline timestamp milliseconds(u64 n)
 {
-    return seconds(n) / THOUSAND;
+    return diva(seconds(n), THOUSAND);
 }
 
 static inline timestamp microseconds(u64 n)
 {
-    return seconds(n) / MILLION;
+    return diva(seconds(n), MILLION);
 }
 
 static inline timestamp nanoseconds(u64 n)
 {
-    return seconds(n) / BILLION;
+    return diva(seconds(n) , BILLION);
 }
 
 static inline timestamp femtoseconds(u64 fs)
 {
-    return fs / (QUADRILLION >> 32);
+    return diva(fs , (QUADRILLION >> 32));
 }
 
 // without seconds component
@@ -61,3 +76,4 @@ static inline u64 sec_from_timestamp(timestamp n)
 {
     return n / TIMESTAMP_SECOND;
 }
+
