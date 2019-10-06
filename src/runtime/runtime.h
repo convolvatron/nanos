@@ -142,7 +142,8 @@ typedef void *value;
 #define tag_tuple (2ull)
 #define tag_string (3ull)
 #define tag_method_rewind (4ull)
-#define tag_max (5ull)
+#define tag_buffer (5ull)
+#define tag_max (6ull)
 
 #include <symbol.h>
 
@@ -211,3 +212,5 @@ void __stack_chk_guard_init();
 #define _countof(a) (sizeof(a) / sizeof(*(a)))
 
 #include <method.h>
+// standard descriptor, h is for the body
+string allocate_string(heap h, int length);

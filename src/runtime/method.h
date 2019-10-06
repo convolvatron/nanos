@@ -13,24 +13,21 @@ typedef struct methods {
     m_elements elements;                
 } *methods;
 
-extern methods tuple_methods;
+extern methods tagmethods[tag_max];
 
 static inline methods methods_of(value v)
 {
-    if (tagof(v) == tag_tuple) {
-        return tuple_methods;
-    }
-    
+    // check tag max
     if (tagof(v) == tag_method_rewind) {
         return ((methods)v - 1);
     }
-    halt("find methods for non-value");
+    return tagmethods[tagof(v)];
 }
 
 #define get(__m, __k) (methods_of(__m)->get)(__m, __k)
 #define set(__m, __k, __v) (methods_of(__m)->set)(__m, __k, __v)
 #define elements(__m) (methods_of(__m)->elements)(__m)
-#define vformat(__b, __m)  (methods_of(__m)->format)(__b, __m)
+#define vformat(__b, __m)  (methods_of(__m)->format)(__b, __m) // should be format?
 #define iterate(__h, __m, __e) (methods_of(__m)->iterate)(__h, __m, __e)
 
 each close_each_copy(heap h, value *, value *, thunk *);

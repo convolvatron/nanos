@@ -1,5 +1,7 @@
 #include <runtime.h>
 
+methods tagmethods[tag_max];
+
 static inline CLOSURE_3_3(iterator_each, void, value *, value *, thunk *,
                    value, value, thunk);
 

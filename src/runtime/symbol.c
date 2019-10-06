@@ -20,8 +20,7 @@ symbol intern(string name)
 {
     symbol s;
     if (!(s = table_find(symbols, name))) {
-        // shouldnt really be on transient
-        buffer b = allocate_buffer(iheap, buffer_length(name));
+        buffer b = allocate_string(iheap, buffer_length(name));
         if (b == INVALID_ADDRESS)
             goto alloc_fail;
         push_buffer(b, name);
@@ -49,10 +48,21 @@ key key_from_symbol(void *z)
     return s->k;
 }
 
+
+
+static value symget(value m, symbol b){return 0;}
+static u64 symelements(value m){return 0;}
+static void symset(value m, symbol b, value v){} // shouldn't set 
+static void symformat(buffer b, value m){vformat(b, symbol_string(m));}
+static void symiterate(heap h, value v, each e){iterate(h, symbol_string(v), e);}
+
+static struct methods _symm = {symget, symset, symiterate, symformat, symelements};
+
 void init_symbols(heap h, heap init)
 {
     sheap = h;
     iheap = init;    
     symbols = allocate_table(iheap, fnv64, buffer_compare);
+    tagmethods[tag_symbol] = &_symm;
 }
 

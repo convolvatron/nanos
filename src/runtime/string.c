@@ -1,5 +1,7 @@
 #include <runtime.h>
 
+heap string_heap;
+
 char *
 runtime_strchr (const char *string, int _c)
 {
@@ -53,4 +55,60 @@ runtime_strcmp (const char *string1, const char *string2)
     }
 
     return *(const unsigned char *)string1 - *(const unsigned char *)string2;
+}
+
+
+// these two should be asynchronous? dont you think?
+static value sget(value m, symbol b)
+{
+    return 0;
+}
+
+static u64 selements(value m)
+{
+    return 0;
+}
+
+static void sset(value m, symbol b, value v)
+{
+}
+
+
+static void sformat(buffer b, value m)
+{
+    push_buffer(b, m);
+}
+
+// static CLOSURE_2_0(seach, void, buffer, each);
+static void seach(buffer b, each n)
+{
+    rprintf("actually calling seah\n");
+    // self close
+}
+
+static void siterate(heap h, value v, each e)
+{
+    buffer in = (buffer)v;
+    buffer b = wrap_buffer(h, in->contents, buffer_length(in));
+    // allocate working buffer to record offset, and reclaim..on h i guess
+    rprintf("actually calling titerate\n");
+    seach(b, e);
+}
+
+static struct methods _sm = {sget, sset, siterate, sformat, selements};
+
+string allocate_string(heap h, int length)
+{
+    buffer b = allocate(string_heap, sizeof(struct buffer));
+    b->contents = allocate(h, length);
+    b->start = 0;
+    b->end = length;
+    b->h = h;
+    return b;
+}
+    
+void init_string(heap h)
+{
+    string_heap = h;
+    tagmethods[tag_string] = &_sm;
 }
