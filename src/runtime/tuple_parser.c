@@ -256,6 +256,7 @@ parser tuple_parser(heap h, parse_finish c, parse_error err)
 
 parser parser_feed (parser p, buffer b)
 {
+    // generic foreach!
     string_foreach(i, b) p = apply(p, i);
     return p;
 }

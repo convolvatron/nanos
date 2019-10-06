@@ -240,13 +240,11 @@ static void tformat(buffer b, value m)
 static CLOSURE_5_0(teach, void, heap, table, int, entry, each);
 static void teach(heap h, table t, int slot, entry e, each n)
 {
-    rprintf("actually calling teah\n");    
     if (slot > t->buckets) {
         apply(n, INVALID_ADDRESS, INVALID_ADDRESS, INVALID_ADDRESS);
     } else {
         if (e) {
             thunk nt = closure(h, teach, h, t, slot, e->next, n);
-            rprintf("it %lx %lx\n", e->c, e->v);
             apply(n, e->c, e->v, nt);
         } else {
             teach(h, t, slot+1, t->entries[slot], n);
@@ -258,7 +256,6 @@ static void teach(heap h, table t, int slot, entry e, each n)
 static void titerate(heap h, value v, each e)
 {
     table t = (table)v;
-    rprintf("actually calling titerate\n");
     teach(h, (table)v, 1, t->entries[0], e);
 }
 

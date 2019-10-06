@@ -123,7 +123,6 @@ void print_tuple(buffer b, tuple z)
             push_character(b, ' ');
         }
         bprintf(b, "%b:", symbol_string((symbol)n));
-        rprintf("%v\n", n);
         vformat(b, v);
         sub = true;
     }

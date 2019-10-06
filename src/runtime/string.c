@@ -99,12 +99,7 @@ static struct methods _sm = {sget, sset, siterate, sformat, selements};
 
 string allocate_string(heap h, int length)
 {
-    buffer b = allocate(string_heap, sizeof(struct buffer));
-    b->contents = allocate(h, length);
-    b->start = 0;
-    b->end = length;
-    b->h = h;
-    return b;
+    return allocate_buffer(string_heap, h, allocate(h, length), length);
 }
     
 void init_string(heap h)
