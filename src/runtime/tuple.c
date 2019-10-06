@@ -245,7 +245,8 @@ static void teach(heap h, table t, int slot, entry e, each n)
         apply(n, INVALID_ADDRESS, INVALID_ADDRESS, INVALID_ADDRESS);
     } else {
         if (e) {
-            thunk nt = closure(h, teach, h, t, slot, e->next, n);            
+            thunk nt = closure(h, teach, h, t, slot, e->next, n);
+            rprintf("it %lx %lx\n", e->c, e->v);
             apply(n, e->c, e->v, nt);
         } else {
             teach(h, t, slot+1, t->entries[slot], n);

@@ -644,7 +644,8 @@ static sysreturn mmap(void *target, u64 size, int prot, int flags, int fd, u64 o
     thread_log(current, "  read file at 0x%lx, %s map, blocking...", where, mapped ? "existing" : "new");
 
     heap mh = heap_backed(kh);
-    buffer b = allocate_buffer(mh, pad(len, mh->pagesize));
+    bytes blen = pad(len, mh->pagesize);
+    buffer b = allocate_buffer(mh, mh, allocate(mh, blen), blen);
     filesystem_read(p->fs, f->n, buffer_ref(b, 0), len, offset,
                     closure(h, mmap_read_complete, current, where, len, mapped, b, page_map_flags(vmflags)));
     thread_sleep_uninterruptible();

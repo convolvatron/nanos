@@ -68,7 +68,7 @@ static void build_exec_stack(process p, thread t, Elf64_Ehdr * e, void *start, u
     int envc = table_elements(environment);
     char **envp = stack_allocate(envc * sizeof(u64));
     envc = 0;
-    buffer b = allocate_buffer(transient, 128);
+    buffer b = allocate_string(transient, 128);
     table_foreach(environment, n, v)
         envp[envc++] = ppush(s, b, "%b=%b", symbol_string(n), v);
 

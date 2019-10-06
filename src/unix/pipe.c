@@ -273,7 +273,7 @@ int do_pipe2(int fds[2], int flags)
     pipe->files[PIPE_WRITE].pipe = pipe;
     pipe->ref_cnt = 0;
     pipe->max_size = DEFAULT_PIPE_MAX_SIZE;
-    pipe->data = allocate_buffer(pipe->h, INITIAL_PIPE_DATA_SIZE);
+    pipe->data = allocate_buffer(pipe->h, pipe->h, allocate(pipe->h, INITIAL_PIPE_DATA_SIZE), INITIAL_PIPE_DATA_SIZE);
     if (pipe->data == INVALID_ADDRESS) {
         msg_err("failed to allocate pipe's data buffer\n");
         pipe_release(pipe);

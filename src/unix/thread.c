@@ -283,8 +283,7 @@ void thread_log_internal(thread t, const char *desc, ...)
             return;
         vlist ap;
         vstart (ap, desc);        
-        buffer b = allocate_buffer(transient, 100);
-        bprintf(b, "%n%d ", (int) ((MAX(MIN(t->tid, 20), 1) - 1) * 4), t->tid);
+        buffer b = aprintf(transient, "%n%d ", (int) ((MAX(MIN(t->tid, 20), 1) - 1) * 4), t->tid);
         if (current->name[0] != '\0')
             bprintf(b, "[%s] ", current->name);
         buffer f = alloca_wrap_buffer(desc, runtime_strlen(desc));

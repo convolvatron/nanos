@@ -203,7 +203,7 @@ void log_read_complete(log tl, status_handler sh, status s)
 
 void read_log(log tl, u64 offset, u64 size, status_handler sh)
 {
-    tl->staging = allocate_buffer(tl->h, size);
+    tl->staging = allocate_buffer(tl->h, tl->h, allocate(tl->h, size), size);
     status_handler tlc = closure(tl->h, log_read_complete, tl, sh);
     range r = log_block_range(tl, tl->staging->length);
 //    rprintf("blocks %R\n", r);

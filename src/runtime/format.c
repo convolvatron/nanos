@@ -97,7 +97,7 @@ void log_printf(const char * prefix, const char *log_format, ...)
 
 buffer aprintf(heap h, const char *fmt, ...)
 {
-    buffer b = allocate_buffer(h, 80);
+    buffer b = allocate_string(h, 80);
     vlist ap;
     buffer f = alloca_wrap_buffer(fmt, runtime_strlen(fmt));
     vstart (ap, fmt);

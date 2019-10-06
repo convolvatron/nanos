@@ -45,7 +45,9 @@ static inline void *vector_delete(vector v, int offset)
 
 static inline vector allocate_vector(heap h, int length)
 {
-    return allocate_buffer(h, length * sizeof (void *));
+    // stride? vector region?
+    bytes len = length * sizeof (void *);
+    return allocate_buffer(h, h, allocate(h, len), len);
 }
 
 static inline void deallocate_vector(vector v)
@@ -81,11 +83,11 @@ static void *vector_pop(vector v)
 static inline vector split(heap h, buffer source, char divider)
 {
     vector result = allocate_vector(h, 10);
-    buffer each = allocate_buffer(h, 10);
+    string each = allocate_string(h, 10);
     foreach_character(_, i, source) {
         if (i == divider)  {
             vector_push(result, each);
-            each = allocate_buffer(h, 10);
+            each = allocate_string(h, 10);
         } else {
             push_character(each, i);
         }
@@ -96,7 +98,7 @@ static inline vector split(heap h, buffer source, char divider)
 
 static inline buffer join(heap h, vector source, char between)
 {
-    buffer out = allocate_buffer(h, 100);
+    buffer out = allocate_string(h, 100);
     for (int i = 0; i < vector_length(source); i++){
         if (i) push_character(out, between);
         push_buffer(out, vector_get(source, i));

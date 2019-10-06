@@ -4,6 +4,9 @@
 
 typedef buffer string;
 
+// standard descriptor, h is for the body
+string allocate_string(heap h, int length);
+
 static inline s8 digit_of(character x)
 {
     if ((x <= 'f') && (x >= 'a')) return(x - 'a' + 10);

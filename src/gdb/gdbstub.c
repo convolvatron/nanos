@@ -365,10 +365,10 @@ buffer_handler init_gdb(heap h,
     gdb g = allocate(h, sizeof(struct gdb));
     g->output_handler = outh;
     // why do I need three here?
-    g->output = allocate_buffer(h, 256); 
-    g->send_buffer = allocate_buffer(h, 256); 
-    g->out = allocate_buffer(h, 256); 
-    g->in = allocate_buffer(h, 256);
+    g->output = allocate_buffer(h, h, allocate(h, 256), 256); 
+    g->send_buffer = allocate_buffer(h, h, allocate(h, 256), 256); 
+    g->out = allocate_buffer(h, h, allocate(h, 256), 256); 
+    g->in = allocate_buffer(h, h, allocate(h, 256), 256);
     g->h = h;
     g->t = vector_get(p->threads, 0);
     g->t->frame[FRAME_FAULT_HANDLER] = u64_from_pointer(closure(h, gdb_handle_exception, g));

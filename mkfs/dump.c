@@ -82,7 +82,7 @@ static void fsc(heap h, buffer b, tuple root, filesystem fs, status s)
         exit(EXIT_FAILURE);
     }
 
-    buffer rb = allocate_buffer(h, PAGESIZE);
+    buffer rb = allocate_buffer(h, h, allocate(h, PAGESIZE), PAGESIZE);
     print_root(rb, root);
     buffer_print(rb);
     rprintf("\n");

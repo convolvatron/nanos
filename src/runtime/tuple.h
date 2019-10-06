@@ -26,7 +26,7 @@ static inline u64 u64_from_value(value v)
 
 static inline value value_from_u64(heap h, u64 v)
 {
-    value result = allocate_buffer(h, 10);
+    value result = allocate_string(h, 10);
     print_number((buffer)result, v, 10, 0);
     return result;
 }

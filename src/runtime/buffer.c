@@ -1,6 +1,6 @@
 #include <runtime.h>
 
-buffer allocate_buffer(heap h, bytes s)
+buffer allocate_buffer(heap h, heap ch, void *contents, bytes s)
 {
     buffer b = allocate(h, sizeof(struct buffer));
     if (b == INVALID_ADDRESS)
@@ -8,9 +8,8 @@ buffer allocate_buffer(heap h, bytes s)
     b->start = 0;
     b->end = 0;
     b->length = s;
-    b->wrapped = false;
-    b->h = h;
-    b->contents = allocate(h, s);
+    b->h = ch;
+    b->contents = allocate(ch, s);
     if (b->contents == INVALID_ADDRESS) {
         deallocate(h, b, sizeof(struct buffer));
         return INVALID_ADDRESS;

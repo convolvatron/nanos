@@ -311,7 +311,7 @@ sysreturn socketpair(int domain, int type, int protocol, int sv[2]) {
         return set_syscall_error(current, ENOMEM);
     }
     sockpair->h = h;
-    sockpair->data = allocate_buffer(sockpair->h, 128);
+    sockpair->data = allocate_buffer(sockpair->h, sockpair->h, allocate(sockpair->h, 128), 128);
     if (sockpair->data == INVALID_ADDRESS) {
         msg_err("failed to allocate socketpair data buffer\n");
         sockpair_release(sockpair);

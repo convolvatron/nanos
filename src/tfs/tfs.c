@@ -305,7 +305,8 @@ void filesystem_read_entire(filesystem fs, tuple t, heap bufheap, buffer_handler
     }
 
     u64 length = pad(fsfile_get_length(f), fs->blocksize);
-    buffer b = allocate_buffer(bufheap, pad(length, bufheap->pagesize));
+    bytes blen = pad(length, bufheap->pagesize);
+    buffer b = allocate_buffer(bufheap, bufheap, allocate(bufheap, blen), blen);
     filesystem_read_internal(fs, f, b, length, 0, closure(fs->h, read_entire_complete, c, b, sh));
 }
 
