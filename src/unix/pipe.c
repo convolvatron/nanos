@@ -80,7 +80,7 @@ static void pipe_release(pipe p)
     if (!p->ref_cnt || (fetch_and_add(&p->ref_cnt, -1) == 1)) {
         pipe_debug("%s(%p): deallocating pipe\n", __func__, p);
         if (p->data != INVALID_ADDRESS)
-            deallocate_buffer(p->data);
+            deallocate_buffer(p->h, p->data);
 
         unix_cache_free(get_unix_heaps(), pipe, p);
     }

@@ -221,7 +221,7 @@ bitmap allocate_bitmap(heap h, u64 length)
 void deallocate_bitmap(bitmap b)
 {
     if (b->alloc_map)
-	deallocate_buffer(b->alloc_map);
+	deallocate_buffer(b->h, b->alloc_map);
     deallocate(b->h, b, sizeof(struct bitmap));
 }
 

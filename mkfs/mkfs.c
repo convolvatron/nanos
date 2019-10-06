@@ -53,7 +53,7 @@ buffer lookup_file(heap h, const char *target_root, buffer name, struct stat *st
                     halt("couldn't stat file %b: %s\n", target_name, strerror(errno));
 
                 // not found in target root -- fallback to lookup on host
-                deallocate_buffer(target_name);
+                deallocate_string(target_name);
                 target_name = NULL;
                 break;
             }
@@ -109,7 +109,7 @@ void read_file(heap h, const char *target_root, buffer dest, buffer name)
     close(fd);
 
     if (target_name != NULL)
-        deallocate_buffer(target_name);
+        deallocate_string(target_name);
 }
 
 heap malloc_allocator();
@@ -207,7 +207,7 @@ static void fsc(heap h, descriptor out, const char *target_root, filesystem fs, 
     buffer b = allocate_string(transient, 64);
     print_tuple(b, md);
     buffer_print(b);
-    deallocate_buffer(b);
+    deallocate_string(b);
     rprintf("\n");
 
     filesystem_write_tuple(fs, md, ignore_status);
@@ -218,7 +218,7 @@ static void fsc(heap h, descriptor out, const char *target_root, filesystem fs, 
         if (contents) {
             allocate_fsfile(fs, f);
             filesystem_write(fs, f, contents, 0, ignore_io_status);
-            deallocate_buffer(contents);
+            deallocate_buffer(h, contents);
         }
     }
 }

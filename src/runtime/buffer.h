@@ -208,10 +208,10 @@ void print_hex_buffer(buffer s, buffer b);
 
 void print_byte(buffer b, u8 f);
 
-static inline void deallocate_buffer(buffer b)
+static inline void deallocate_buffer(heap h, buffer b)
 {
-    heap h = b->h;
-    deallocate(h, b->contents, b->length);
+    if (b->h) 
+        deallocate(b->h, b->contents, b->length);
     deallocate(h, b, sizeof(struct buffer));
 }
 

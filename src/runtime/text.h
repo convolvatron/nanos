@@ -6,6 +6,7 @@ typedef buffer string;
 
 // standard descriptor, h is for the body
 string allocate_string(heap h, int length);
+void deallocate_string(string s);
 
 static inline s8 digit_of(character x)
 {

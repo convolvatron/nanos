@@ -278,7 +278,7 @@ static void sockpair_release(struct sockpair *sockpair)
 {
     if (!sockpair->ref_cnt || (fetch_and_add(&sockpair->ref_cnt, -1) == 1)) {
         if (sockpair->data != INVALID_ADDRESS) {
-            deallocate_buffer(sockpair->data);
+            deallocate_buffer(sockpair->h, sockpair->data);
         }
         deallocate(sockpair->h, sockpair, sizeof(*sockpair));
     }

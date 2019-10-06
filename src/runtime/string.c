@@ -2,6 +2,11 @@
 
 heap string_heap;
 
+void deallocate_string(string s)
+{
+    deallocate_buffer(string_heap, s);
+}
+        
 char *
 runtime_strchr (const char *string, int _c)
 {

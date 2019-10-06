@@ -119,7 +119,7 @@ vqmsg allocate_vqmsg(virtqueue vq)
 /* must be safe at interrupt level */
 void deallocate_vqmsg_irq(virtqueue vq, vqmsg m)
 {
-    deallocate_buffer(m->descv);
+    deallocate_buffer(vq->dev->general, m->descv);
     deallocate(vq->dev->general, m, sizeof(struct vqmsg));
 }
 

@@ -279,8 +279,8 @@ void filesystem_read(filesystem fs, tuple t, void *dest, u64 length, u64 offset,
     filesystem_read_internal(fs, f, b, length, offset, sh);
 }
 
-static CLOSURE_3_1(read_entire_complete, void, buffer_handler, buffer, status_handler, status);
-static void read_entire_complete(buffer_handler bh, buffer b, status_handler sh, status s)
+static CLOSURE_4_1(read_entire_complete, void, heap, buffer_handler, buffer, status_handler, status);
+static void read_entire_complete(heap h, buffer_handler bh, buffer b, status_handler sh, status s)
 {
     tfs_debug("read_entire_complete: status %v, addr %p, length %d\n",
               s, buffer_ref(b, 0), buffer_length(b));
@@ -288,7 +288,7 @@ static void read_entire_complete(buffer_handler bh, buffer b, status_handler sh,
         report_sha256(b);
         apply(bh, b);
     } else {
-        deallocate_buffer(b);
+        deallocate_buffer(h, b);
         apply(sh, s);
     }
 }
@@ -307,7 +307,7 @@ void filesystem_read_entire(filesystem fs, tuple t, heap bufheap, buffer_handler
     u64 length = pad(fsfile_get_length(f), fs->blocksize);
     bytes blen = pad(length, bufheap->pagesize);
     buffer b = allocate_buffer(bufheap, bufheap, allocate(bufheap, blen), blen);
-    filesystem_read_internal(fs, f, b, length, 0, closure(fs->h, read_entire_complete, c, b, sh));
+    filesystem_read_internal(fs, f, b, length, 0, closure(fs->h, read_entire_complete, bufheap, c, b, sh));
 }
 
 /*

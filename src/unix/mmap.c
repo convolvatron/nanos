@@ -274,14 +274,14 @@ static sysreturn mincore(void *addr, u64 length, u8 *vec)
 static CLOSURE_6_2(mmap_read_complete, void, thread, u64, u64, boolean, buffer, u64, status, bytes);
 static void mmap_read_complete(thread t, u64 where, u64 mmap_len, boolean mapped, buffer b, u64 mapflags,
                                status s, bytes length) {
+    kernel_heaps kh = (kernel_heaps)&t->uh;    
     if (!is_ok(s)) {
-        deallocate_buffer(b);
+        deallocate_buffer(heap_backed(kh), b);
         set_syscall_error(t, EACCES);
         thread_wakeup(t);
 	return;
     }
 
-    kernel_heaps kh = (kernel_heaps)&t->uh;
     heap pages = heap_pages(kh);
     heap physical = heap_physical(kh);
 
@@ -308,10 +308,11 @@ static void mmap_read_complete(thread t, u64 where, u64 mmap_len, boolean mapped
     }
 
     if (mapped) {
-        deallocate_buffer(b);
+        deallocate_buffer(heap_backed(kh), b);
     } else {
         /* XXX This is gross. Either support this within the buffer interface or use something besides
            a buffer... */
+        // it might be cleaner to maintain the p/v separation and not use backed in the first place
         physically_backed_dealloc_virtual(b->h, u64_from_pointer(buffer_ref(b, 0)), pad(mmap_len, b->h->pagesize));
         deallocate(b->h, b, sizeof(struct buffer));
     }
@@ -646,6 +647,7 @@ static sysreturn mmap(void *target, u64 size, int prot, int flags, int fd, u64 o
     heap mh = heap_backed(kh);
     bytes blen = pad(len, mh->pagesize);
     buffer b = allocate_buffer(mh, mh, allocate(mh, blen), blen);
+    // xxx - wouldn't we want to read directly? into the target
     filesystem_read(p->fs, f->n, buffer_ref(b, 0), len, offset,
                     closure(h, mmap_read_complete, current, where, len, mapped, b, page_map_flags(vmflags)));
     thread_sleep_uninterruptible();
