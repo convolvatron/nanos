@@ -1,7 +1,7 @@
 #pragma once
 typedef buffer vector;
 
-static heap vector_heap;
+extern heap vector_heap;
 
 static inline void *vector_get(vector v, int offset)
 {
@@ -133,3 +133,4 @@ static inline vector build_vector_internal(heap h, ...)
 #define build_vector(_h, ...) build_vector_internal(_h, __VA_ARGS__, INVALID_PHYSICAL)                       
 
 
+void init_vector(heap);

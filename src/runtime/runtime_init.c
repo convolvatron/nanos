@@ -23,6 +23,7 @@ void init_runtime(kernel_heaps kh)
     heap h = transient = heap_general(kh);
     init_tuples(allocate_tagged_region(kh, tag_tuple));
     init_string(allocate_tagged_region(kh, tag_string));
+    init_vector(allocate_tagged_region(kh, tag_vector));    
     init_symbols(allocate_tagged_region(kh, tag_symbol), h);
     kh->method_rewind = allocate_tagged_region(kh, tag_method_rewind);
     ignore = closure(h, ignore_body);
