@@ -162,7 +162,7 @@ static buffer get_file_contents(heap h, const char *target_root, value v)
     if (path) {
         // seems like it wouldn't be to hard to arrange
         // for this to avoid the staging copy
-        buffer dest = allocate_string(h, 1024);
+        buffer dest = allocate_buffer(h, h, allocate(h, 1024), 1024);
         read_file(h, target_root, dest, path);
         return dest;
     }
