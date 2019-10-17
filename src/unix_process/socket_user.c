@@ -294,7 +294,7 @@ notifier create_poll_notifier(heap h)
     p->n.spin = poll_spin;
     p->registrations = allocate_vector(h, 10);
 
-    p->poll_fds = allocate_buffer(h, 10 * sizeof(struct pollfd));
+    p->poll_fds = allocate_buffer(h, h, allocate(h, 10 * sizeof(struct pollfd)), 10 * sizeof(struct pollfd));
     buffer_produce(p->poll_fds, 10 * sizeof(struct pollfd));
     struct pollfd *fds = (struct pollfd *) buffer_ref(p->poll_fds, 0);
     for (int i = 0; i < NFDS(p->poll_fds); i++) {
@@ -433,7 +433,7 @@ static CLOSURE_4_0(connection_input, void, heap, descriptor, notifier, buffer_ha
 static void connection_input(heap h, descriptor f, notifier n, buffer_handler p)
 {
     // can reuse?
-    buffer b = allocate_buffer(h, 512);
+    buffer b = allocate_buffer(h, h, allocate(h, 512), 512);
     int res = read(f, b->contents, b->length);
     if (res > 0) {
         b->end = res;

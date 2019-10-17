@@ -61,7 +61,7 @@ boolean encode_decode_test(heap h)
     boolean failure = true;
 
     // encode
-    buffer b3 = allocate_buffer(h, 128);
+    buffer b3 = allocate_buffer(h, h, allocate(h, 128), 128);
     tuple t3 = allocate_tuple();
     table_set(t3, intern_u64(1), wrap_buffer_cstring(h, "200"));
 
@@ -75,7 +75,7 @@ boolean encode_decode_test(heap h)
     table tdict2 = allocate_table(h, identity_key, pointer_equal);
     tuple t4 = decode_value(h, tdict2, b3);
 
-    buffer buf = allocate_buffer(h, 128);
+    buffer buf = allocate_buffer(h, h, allocate(h, 128), 128);
     bprintf(buf, "%t", t4);
     test_assert(strncmp(buf->contents, "(1:200)", buf->length) == 0);
 
@@ -94,7 +94,7 @@ boolean encode_decode_reference_test(heap h)
     boolean failure = true;
 
     // encode
-    buffer b3 = allocate_buffer(h, 128);
+    buffer b3 = allocate_buffer(h, h, allocate(h, 128), 128);
     tuple t3 = allocate_tuple();
     tuple t33 = allocate_tuple();
     table_set(t33, intern_u64(1), wrap_buffer_cstring(h, "200"));
@@ -111,7 +111,7 @@ boolean encode_decode_reference_test(heap h)
     table tdict2 = allocate_table(h, identity_key, pointer_equal);
     tuple t4 = decode_value(h, tdict2, b3);
 
-    buffer buf = allocate_buffer(h, 128);
+    buffer buf = allocate_buffer(h, h, allocate(h, 128), 128);
     bprintf(buf, "%t", t4);
     test_assert((strncmp(buf->contents, "(1:(1:200) 2:(1:200))", buf->length) == 0) ||
                 (strncmp(buf->contents, "(2:(1:200) 1:(1:200))", buf->length) == 0));
@@ -125,7 +125,7 @@ boolean encode_decode_lengthy_test(heap h)
     boolean failure = true;
 
     // encode
-    buffer b3 = allocate_buffer(h, 1000*50);
+    buffer b3 = allocate_buffer(h, h, allocate(h, 1000*50), 1000*50);
     tuple t3 = allocate_tuple();
     for (int i=0; i<1000; ++i)
     {

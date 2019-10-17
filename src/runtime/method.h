@@ -32,12 +32,12 @@ static inline methods methods_of(value v)
 
 each close_each_copy(heap h, value *, value *, thunk *);
 
-// we increment n here at the end because the compiler isn't getting
+// we clear __k here at the end because the compiler is getting
 // confused that the condition is being modified outside the loop body..
 #define foreach(__m, __k, __v)                  \
     for (void *__k = 0, *__v, *__pnext,                         \
              *it=close_each_copy(transient, &__k, &__v, (thunk *)&__pnext);__k != INVALID_ADDRESS;) \
-        for(iterate(transient, __m, (each)it); __k != INVALID_ADDRESS; apply((thunk)__pnext))
+        for(iterate(transient, __m, (each)it); __k != INVALID_ADDRESS; __k =0 , apply((thunk)__pnext))
 
 
 static inline value allocate_method_rewind(heap h, bytes size,

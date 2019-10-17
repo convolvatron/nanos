@@ -10,6 +10,7 @@
 #include <drivers/console.h>
 #include <unix_internal.h>
 
+#define STAGE3_REGION_DEBUG 
 extern void init_net(kernel_heaps kh);
 extern void start_interrupts(kernel_heaps kh);
 

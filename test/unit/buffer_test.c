@@ -21,7 +21,7 @@ boolean basic_tests(heap h)
     boolean failure = true;
     buffer wb = (buffer)0;
     char test_str[] =  "This is a test string";
-    buffer b = allocate_buffer(h, 10);
+    buffer b = allocate_buffer(h, h, allocate(h, 10), 10);
     /*
      * Validate buffer initialized correct, and some 
      * length is correct after write/read
@@ -52,14 +52,14 @@ boolean basic_tests(heap h)
     failure = false;
   fail:
     if (wb) unwrap_buffer(h, wb);
-    deallocate_buffer(b);
+    deallocate_buffer(h, b);
     return failure;
 }
 
 boolean byteorder_tests(heap h)
 {
     boolean failure = true;
-    buffer b = allocate_buffer(h, 10);
+    buffer b = allocate_buffer(h, h, allocate(h, 10), 10);
     test_assert(buffer_length(b) == 0);
 
     // Validate le/be intrfaces
@@ -76,7 +76,7 @@ boolean byteorder_tests(heap h)
     test_assert(buffer_read_be32(b) == 0xdeadbeef);
     failure = false;
   fail:
-    deallocate_buffer(b);
+    deallocate_buffer(h, b);
     return failure;
 }
 
@@ -85,10 +85,10 @@ boolean concat_tests(heap h)
     int seed_size = 0x4000;
     boolean failure = true;
     buffer wb = (buffer)0;
-    buffer b = allocate_buffer(h, 10);
+    buffer b = allocate_buffer(h, h, allocate(h, 10), 10);
 
     // Allocating and initializing a buffer with random data as source data
-    buffer seed_buffer = allocate_buffer(h, seed_size);
+    buffer seed_buffer = allocate_buffer(h, h, allocate(h, seed_size), seed_size);
     test_assert(seed_buffer->length == seed_size);
     // getrandom() uses buffer_length() to determine how much data to fill. We are
     // using buffer_produce() to set the amount of data in buffer, so getrandom() will 
@@ -120,11 +120,11 @@ boolean concat_tests(heap h)
 
     unwrap_buffer(h, wb);
     wb = (buffer)0;
-    deallocate_buffer(b);
+    deallocate_buffer(h, b);
 
     // initialize a very small buffer so we can be certain buffer will
     // extend when we write.
-    b = allocate_buffer(h, 1);
+    b = allocate_buffer(h, h, allocate(h, 1), 1);
     int offset = 0;
     int size;
     // write into buffer with various sized chunks from source-buffer
@@ -153,8 +153,8 @@ boolean concat_tests(heap h)
   failure = false;
   fail:
     if (wb) unwrap_buffer(h, wb);
-    deallocate_buffer(b);
-    deallocate_buffer(seed_buffer);
+    deallocate_buffer(h, b);
+    deallocate_buffer(h, seed_buffer);
     return failure;
 }
 
@@ -168,7 +168,7 @@ boolean concat_tests(heap h)
 boolean vbprintf_tests(heap h)
 {
     boolean failure = true;
-    buffer b = allocate_buffer(h, 10);
+    buffer b = allocate_buffer(h, h, allocate(h, 10), 10);
 
     // %s
     VBPRINTF_TEST(b, "hello, world", "%s", "hello, world");
@@ -205,7 +205,7 @@ boolean vbprintf_tests(heap h)
     failure = false;
 
 fail:
-    deallocate_buffer(b);
+    deallocate_buffer(h, b);
     return failure;
 }
 
