@@ -9,6 +9,10 @@ static inline s8 isalpha(character x)
     return (x <= 'z' && x >= 'a') ||(x <= 'Z' && x >= 'A');
 }
 
+// standard descriptor, h is for the body
+string allocate_string(heap h, int length);
+void deallocate_string(string s);
+
 static inline s8 digit_of(character x)
 {
     if ((x <= 'f') && (x >= 'a')) return(x - 'a' + 10);

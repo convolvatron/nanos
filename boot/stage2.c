@@ -38,20 +38,6 @@ static struct kernel_heaps kh;
 static u64 stack_base;
 static u64 identity_base;
 
-static u64 s[2] = { 0xa5a5beefa5a5cafe, 0xbeef55aaface55aa };
-
-u64 random_u64()
-{
-    u64 s0 = s[0];
-    u64 s1 = s[1];
-    u64 result = s0 + s1;
-
-    s1 ^= s0;
-    s[0] = ROL(s0, 55) ^ s1 ^ (s1 << 14); // a, b
-    s[1] = ROL(s1, 36); // c
-    return result;
-}
-
 // defined in service32.s
 extern void bios_tty_write(char *s, bytes count);
 extern void bios_read_sectors(void *buffer, int start_sector, int sector_count);
@@ -171,7 +157,7 @@ static CLOSURE_0_1(kernel_read_complete, void, buffer);
 static void __attribute__((noinline)) kernel_read_complete(buffer kb)
 {
     stage2_debug("%s\n", __func__);
-
+    rprintf("foobie!\n");
     /* save kernel elf image for use in stage3 (for symbol data) */
     create_region(u64_from_pointer(buffer_ref(kb, 0)), pad(buffer_length(kb), PAGESIZE), REGION_KERNIMAGE);
 
@@ -183,7 +169,6 @@ static void __attribute__((noinline)) kernel_read_complete(buffer kb)
     /* tell stage3 that pages from the stage2 working heap can be reclaimed */
     assert(working_saved_base);
     create_region(working_saved_base, STAGE2_WORKING_HEAP_SIZE, REGION_PHYSICAL);
-
     run64(u64_from_pointer(k));
 }
 

@@ -15,7 +15,7 @@
 
 static buffer read_stdin(heap h)
 {
-    buffer in = allocate_buffer(h, 1024);
+    buffer in = allocate_string(h, 1024);
     int r, k;
     while ((r = in->length - in->end) &&
            ((k = read(0, in->contents + in->end, r)), in->end += k, k > 0))
@@ -39,7 +39,7 @@ buffer lookup_file(heap h, const char *target_root, buffer name, struct stat *st
         const char *n = buffer_ref(name, 0);
         int len = buffer_length(name);
 
-        target_name = allocate_buffer(h, PATH_MAX);
+        target_name = allocate_string(h, PATH_MAX);
         while (1) {
             // compose target_name
             buffer_clear(target_name);
@@ -53,7 +53,7 @@ buffer lookup_file(heap h, const char *target_root, buffer name, struct stat *st
                     halt("couldn't stat file %b: %s\n", target_name, strerror(errno));
 
                 // not found in target root -- fallback to lookup on host
-                deallocate_buffer(target_name);
+                deallocate_string(target_name);
                 target_name = NULL;
                 break;
             }
@@ -109,7 +109,7 @@ void read_file(heap h, const char *target_root, buffer dest, buffer name)
     close(fd);
 
     if (target_name != NULL)
-        deallocate_buffer(target_name);
+        deallocate_string(target_name);
 }
 
 heap malloc_allocator();
@@ -162,7 +162,7 @@ static buffer get_file_contents(heap h, const char *target_root, value v)
     if (path) {
         // seems like it wouldn't be to hard to arrange
         // for this to avoid the staging copy
-        buffer dest = allocate_buffer(h, 1024);
+        buffer dest = allocate_buffer(h, h, allocate(h, 1024), 1024);
         read_file(h, target_root, dest, path);
         return dest;
     }
@@ -204,10 +204,10 @@ static void fsc(heap h, descriptor out, const char *target_root, filesystem fs, 
     tuple md = translate(h, worklist, target_root, fs, root, closure(h, err));
 
     rprintf("metadata ");
-    buffer b = allocate_buffer(transient, 64);
+    buffer b = allocate_string(transient, 64);
     print_tuple(b, md);
     buffer_print(b);
-    deallocate_buffer(b);
+    deallocate_string(b);
     rprintf("\n");
 
     filesystem_write_tuple(fs, md, ignore_status);
@@ -218,7 +218,7 @@ static void fsc(heap h, descriptor out, const char *target_root, filesystem fs, 
         if (contents) {
             allocate_fsfile(fs, f);
             filesystem_write(fs, f, contents, 0, ignore_io_status);
-            deallocate_buffer(contents);
+            deallocate_buffer(h, contents);
         }
     }
 }

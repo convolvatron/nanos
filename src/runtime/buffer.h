@@ -6,8 +6,7 @@ struct buffer {
     bytes start;
     bytes end;
     bytes length;
-    boolean wrapped;
-    heap h;
+    heap h; // heap over contents
     void *contents;
 };
 
@@ -28,7 +27,6 @@ static inline char peek_char(buffer b)
             b->contents = (void *) __b;                         \
             b->end = b->length = __l;                           \
             b->start  = 0;                                      \
-            b->wrapped = true;                                  \
             b->h = 0;                                           \
             b;                                                  \
         })
@@ -61,7 +59,7 @@ static inline void buffer_extend(buffer b, bytes len)
 {
     // xxx - pad to pagesize
     if (b->length < (b->end + len)) {
-        assert(!b->wrapped);    /* wrapped buffers can't be extended */
+        assert(b->h);    /* wrapped buffers can't be extended */
         int oldlen = b->length;
         b->length = 2*((b->end-b->start)+len);
         void *new = allocate(b->h, b->length);
@@ -98,7 +96,6 @@ static inline buffer wrap_buffer(heap h,
     new->h = h;
     new->end = length;
     new->length = length;
-    new->wrapped = true;
     return(new);
 }
 
@@ -112,7 +109,7 @@ static inline buffer wrap_buffer_cstring(heap h, char *x)
     return wrap_buffer(h, x, runtime_strlen(x));
 }
 
-buffer allocate_buffer(heap h, bytes length);
+buffer allocate_buffer(heap h, heap ch, void *contents, bytes length);
 
 
 static inline void buffer_write(buffer b, const void *source, bytes length)
@@ -211,10 +208,10 @@ void print_hex_buffer(buffer s, buffer b);
 
 void print_byte(buffer b, u8 f);
 
-static inline void deallocate_buffer(buffer b)
+static inline void deallocate_buffer(heap h, buffer b)
 {
-    heap h = b->h;
-    deallocate(h, b->contents, b->length);
+    if (b->h) 
+        deallocate(b->h, b->contents, b->length);
     deallocate(h, b, sizeof(struct buffer));
 }
 
@@ -224,7 +221,7 @@ static inline void copy_descriptor(buffer d, buffer s)
     d->start = s->start;
     d->end = s->end;
     d->length = s->length;
-    d->wrapped = s->wrapped;
+    d->h = s->h;
 }
 
 static inline boolean buffer_compare(void *za, void *zb)
@@ -259,7 +256,7 @@ static inline boolean buffer_compare(void *za, void *zb)
     __b->start = 0;\
     __b->end = 0;\
     __b->length = __length;\
-    __b->wrapped = true; /* it's not wrapped, but we don't want a resize */\
+    __b->h=0;\
     __b;\
    })
 

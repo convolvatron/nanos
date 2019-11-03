@@ -1,5 +1,6 @@
 #include <runtime.h>
 
+
 //#define TUPLE_DEBUG
 #if defined(TUPLE_DEBUG)
 #define tuple_debug(x, ...) do { rprintf("TUPLE: " x, ##__VA_ARGS__); } while(0)
@@ -138,7 +139,7 @@ value decode_value(heap h, tuple dictionary, buffer source)
         buffer b;
         if (imm == immediate) {
             // doesn't seem like we should always need to take a copy in all cases
-            b = allocate_buffer(h, len);
+            b = allocate_string(h, 10);
             buffer_write(b, buffer_ref(source, 0), len);
             source->start += len;
         } else {
@@ -212,8 +213,57 @@ void encode_tuple(buffer dest, table dictionary, tuple t)
     }        
 }
 
+// these two should be asynchronous? dont you think?
+static value tget(value m, symbol b)
+{
+    return 0;
+}
+
+static u64 telements(value m)
+{
+    table_elements((table)m);
+    return 0;
+}
+
+static void tset(value m, symbol b, value v)
+{
+    table_set((table)m, b, v);
+}
+
+
+static void tformat(buffer b, value m)
+{
+    print_tuple(b, m);
+}
+
+// avoid one closure per iteration
+static CLOSURE_5_0(teach, void, heap, table, int, entry, each);
+static void teach(heap h, table t, int slot, entry e, each n)
+{
+    if (slot > t->buckets) {
+        apply(n, INVALID_ADDRESS, INVALID_ADDRESS, INVALID_ADDRESS);
+    } else {
+        if (e) {
+            thunk nt = closure(h, teach, h, t, slot, e->next, n);
+            apply(n, e->c, e->v, nt);
+        } else {
+            teach(h, t, slot+1, t->entries[slot], n);
+        }
+    }
+}
+
+// we're assuming there aren't any structural changes during the iteration
+static void titerate(heap h, value v, each e)
+{
+    table t = (table)v;
+    teach(h, (table)v, 1, t->entries[0], e);
+}
+
+static struct methods _tm = {tget, tset, titerate, tformat, telements};
+
 void init_tuples(heap h)
 {
     theap = h;
+    tagmethods[tag_tuple] = &_tm;
 }
 

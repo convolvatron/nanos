@@ -44,6 +44,8 @@ typedef struct kernel_heaps {
        attempt to verify one if given, so use -1ull to indicate an
        unspecified size). */
     heap general;
+
+    heap method_rewind;
 } *kernel_heaps;
 
 static inline heap heap_general(kernel_heaps heaps)

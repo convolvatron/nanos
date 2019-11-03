@@ -1,6 +1,8 @@
 #pragma once
 typedef buffer vector;
 
+extern heap vector_heap;
+
 static inline void *vector_get(vector v, int offset)
 {
     void *res;
@@ -43,14 +45,18 @@ static inline void *vector_delete(vector v, int offset)
     return res;
 }
 
+extern heap vector_heap;
+
 static inline vector allocate_vector(heap h, int length)
 {
-    return allocate_buffer(h, length * sizeof (void *));
+    // stride? vector region?
+    bytes len = length * sizeof (void *);
+    return allocate_buffer(vector_heap, h, allocate(h, len), len);
 }
 
 static inline void deallocate_vector(vector v)
 {
-    deallocate_buffer((buffer)v);
+    deallocate_buffer(vector_heap, (buffer)v);
 }
 
 static void vector_push(vector v, void *i)
@@ -81,11 +87,11 @@ static void *vector_pop(vector v)
 static inline vector split(heap h, buffer source, char divider)
 {
     vector result = allocate_vector(h, 10);
-    buffer each = allocate_buffer(h, 10);
+    string each = allocate_string(h, 10);
     foreach_character(_, i, source) {
         if (i == divider)  {
             vector_push(result, each);
-            each = allocate_buffer(h, 10);
+            each = allocate_string(h, 10);
         } else {
             push_character(each, i);
         }
@@ -96,7 +102,7 @@ static inline vector split(heap h, buffer source, char divider)
 
 static inline buffer join(heap h, vector source, char between)
 {
-    buffer out = allocate_buffer(h, 100);
+    buffer out = allocate_string(h, 100);
     for (int i = 0; i < vector_length(source); i++){
         if (i) push_character(out, between);
         push_buffer(out, vector_get(source, i));
@@ -125,3 +131,6 @@ static inline vector build_vector_internal(heap h, ...)
 }
 
 #define build_vector(_h, ...) build_vector_internal(_h, __VA_ARGS__, INVALID_PHYSICAL)                       
+
+
+void init_vector(heap);

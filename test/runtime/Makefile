@@ -12,6 +12,7 @@ PROGRAMS= \
 	mkdir \
 	mmap \
 	nullpage \
+	null \
 	paging \
 	pipe \
 	rename \
@@ -78,27 +79,8 @@ LDFLAGS-paging=		-static
 SRCS-pipe= \
 	$(CURDIR)/pipe.c \
 	$(SRCDIR)/unix_process/unix_process_runtime.c \
-	$(SRCDIR)/runtime/bitmap.c \
-	$(SRCDIR)/runtime/buffer.c \
-	$(SRCDIR)/runtime/extra_prints.c \
-	$(SRCDIR)/runtime/format.c \
-	$(SRCDIR)/runtime/memops.c \
-	$(SRCDIR)/runtime/pqueue.c \
-	$(SRCDIR)/runtime/random.c \
-	$(SRCDIR)/runtime/range.c \
-	$(SRCDIR)/runtime/runtime_init.c \
-	$(SRCDIR)/runtime/string.c \
-	$(SRCDIR)/runtime/symbol.c \
-	$(SRCDIR)/runtime/table.c \
-	$(SRCDIR)/runtime/tuple_parser.c \
-	$(SRCDIR)/runtime/tuple.c \
-	$(SRCDIR)/runtime/timer.c \
-	$(SRCDIR)/runtime/crypto/chacha.c \
-	$(SRCDIR)/runtime/heap/id.c \
-	$(SRCDIR)/runtime/heap/freelist.c \
-	$(SRCDIR)/runtime/heap/debug_heap.c \
-	$(SRCDIR)/runtime/heap/objcache.c \
-	$(SRCDIR)/runtime/heap/mcache.c
+	$(RUNTIME)
+
 LDFLAGS-pipe=		-static
 LIBS-pipe=		-lm -lpthread
 
@@ -113,27 +95,7 @@ LDFLAGS-sendfile=	-static
 SRCS-signal= \
 	$(CURDIR)/signal.c \
 	$(SRCDIR)/unix_process/unix_process_runtime.c \
-	$(SRCDIR)/runtime/bitmap.c \
-	$(SRCDIR)/runtime/buffer.c \
-	$(SRCDIR)/runtime/extra_prints.c \
-	$(SRCDIR)/runtime/format.c \
-	$(SRCDIR)/runtime/memops.c \
-	$(SRCDIR)/runtime/pqueue.c \
-	$(SRCDIR)/runtime/random.c \
-	$(SRCDIR)/runtime/range.c \
-	$(SRCDIR)/runtime/runtime_init.c \
-	$(SRCDIR)/runtime/string.c \
-	$(SRCDIR)/runtime/symbol.c \
-	$(SRCDIR)/runtime/table.c \
-	$(SRCDIR)/runtime/tuple_parser.c \
-	$(SRCDIR)/runtime/tuple.c \
-	$(SRCDIR)/runtime/timer.c \
-	$(SRCDIR)/runtime/crypto/chacha.c \
-	$(SRCDIR)/runtime/heap/id.c \
-	$(SRCDIR)/runtime/heap/freelist.c \
-	$(SRCDIR)/runtime/heap/debug_heap.c \
-	$(SRCDIR)/runtime/heap/objcache.c \
-	$(SRCDIR)/runtime/heap/mcache.c
+	$(RUNTIME)
 LDFLAGS-signal=		-static
 LIBS-signal=		-lm -lpthread
 
@@ -155,30 +117,7 @@ SRCS-udploop= \
 	$(SRCDIR)/unix_process/http.c \
 	$(SRCDIR)/unix_process/socket_user.c \
 	$(SRCDIR)/unix_process/tiny_heap.c \
-	$(SRCDIR)/runtime/bitmap.c \
-	$(SRCDIR)/runtime/buffer.c \
-	$(SRCDIR)/runtime/extra_prints.c \
-	$(SRCDIR)/runtime/format.c \
-	$(SRCDIR)/runtime/heap/id.c \
-	$(SRCDIR)/runtime/heap/freelist.c \
-	$(SRCDIR)/runtime/heap/debug_heap.c \
-	$(SRCDIR)/runtime/heap/objcache.c \
-	$(SRCDIR)/runtime/heap/mcache.c \
-	$(SRCDIR)/runtime/memops.c \
-	$(SRCDIR)/runtime/merge.c \
-	$(SRCDIR)/runtime/pqueue.c \
-	$(SRCDIR)/runtime/random.c \
-	$(SRCDIR)/runtime/range.c \
-	$(SRCDIR)/runtime/runtime_init.c \
-	$(SRCDIR)/runtime/sha256.c \
-	$(SRCDIR)/runtime/signature.c \
-	$(SRCDIR)/runtime/string.c \
-	$(SRCDIR)/runtime/symbol.c \
-	$(SRCDIR)/runtime/table.c \
-	$(SRCDIR)/runtime/timer.c \
-	$(SRCDIR)/runtime/tuple_parser.c \
-	$(SRCDIR)/runtime/tuple.c \
-	$(SRCDIR)/runtime/crypto/chacha.c
+        $(RUNTIME)
 LDFLAGS-udploop=	 -static
 
 SRCS-unlink= \
@@ -198,30 +137,7 @@ SRCS-web= \
 	$(SRCDIR)/unix_process/http.c \
 	$(SRCDIR)/unix_process/socket_user.c \
 	$(SRCDIR)/unix_process/tiny_heap.c \
-	$(SRCDIR)/runtime/bitmap.c \
-	$(SRCDIR)/runtime/buffer.c \
-	$(SRCDIR)/runtime/extra_prints.c \
-	$(SRCDIR)/runtime/format.c \
-	$(SRCDIR)/runtime/heap/id.c \
-	$(SRCDIR)/runtime/heap/freelist.c \
-	$(SRCDIR)/runtime/heap/debug_heap.c \
-	$(SRCDIR)/runtime/heap/objcache.c \
-	$(SRCDIR)/runtime/heap/mcache.c \
-	$(SRCDIR)/runtime/memops.c \
-	$(SRCDIR)/runtime/merge.c \
-	$(SRCDIR)/runtime/pqueue.c \
-	$(SRCDIR)/runtime/random.c \
-	$(SRCDIR)/runtime/range.c \
-	$(SRCDIR)/runtime/runtime_init.c \
-	$(SRCDIR)/runtime/sha256.c \
-	$(SRCDIR)/runtime/signature.c \
-	$(SRCDIR)/runtime/string.c \
-	$(SRCDIR)/runtime/symbol.c \
-	$(SRCDIR)/runtime/table.c \
-	$(SRCDIR)/runtime/timer.c \
-	$(SRCDIR)/runtime/tuple_parser.c \
-	$(SRCDIR)/runtime/tuple.c \
-	$(SRCDIR)/runtime/crypto/chacha.c
+        $(RUNTIME)
 
 SRCS-webs=		$(SRCS-web)
 LDFLAGS-webs=		-static

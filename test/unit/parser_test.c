@@ -136,10 +136,10 @@ PARSE_TEST(tuple_simple_test, "(key:value)")
     test_assert(root != NULL);
     test_assert(root->count == 1);
 
-    buffer v1 = table_find(root, intern(wrap_buffer_cstring(h, "key")));
+    string v1 = table_find(root, intern(wrap_buffer_cstring(h, "key")));
     test_assert(v1 != NULL);
     test_strings_equal(v1->contents, "value");
-    deallocate_buffer(v1);
+    deallocate_string(v1);
 
     return true;
 }
@@ -151,10 +151,10 @@ PARSE_TEST(tuple_simple_spaced_test, " ( key : value ) ")
     test_assert(root != NULL);
     test_assert(root->count == 1);
 
-    buffer v1 = table_find(root, intern(wrap_buffer_cstring(h, "key")));
+    string v1 = table_find(root, intern(wrap_buffer_cstring(h, "key")));
     test_assert(v1 != NULL);
     test_strings_equal(v1->contents, "value");
-    deallocate_buffer(v1);
+    deallocate_string(v1);
 
     return true;
 }
@@ -182,12 +182,12 @@ PARSE_TEST(tuple_2elements_test, "(key1:value1 key2:value2)")
     buffer v1 = table_find(root, intern(wrap_buffer_cstring(h, "key1")));
     test_assert(v1 != NULL);
     test_strings_equal(v1->contents, "value1");
-    deallocate_buffer(v1);
+    deallocate_string(v1);
 
     buffer v2 = table_find(root, intern(wrap_buffer_cstring(h, "key2")));
     test_assert(v2 != NULL);
     test_strings_equal(v2->contents, "value2");
-    deallocate_buffer(v2);
+    deallocate_string(v2);
 
     return true;
 }
@@ -237,10 +237,10 @@ PARSE_TEST(tuple_nested_tuple_test, "(key:(key2:value2))")
     test_assert(v1 != NULL);
     test_assert(v1->count == 1);
 
-    buffer v2 = table_find(v1, intern(wrap_buffer_cstring(h, "key2")));
+    string v2 = table_find(v1, intern(wrap_buffer_cstring(h, "key2")));
     test_assert(v2 != NULL);
     test_strings_equal(v2->contents, "value2");
-    deallocate_buffer(v2);
+    deallocate_string(v2);
 
     return true;
 }
@@ -259,7 +259,7 @@ PARSE_TEST(vector_nested_tuple_test, "[(key2:value2)]")
     buffer v2 = table_find(v1, intern(wrap_buffer_cstring(h, "key2")));
     test_assert(v2 != NULL);
     test_strings_equal(v2->contents, "value2");
-    deallocate_buffer(v2);
+    deallocate_string(v2);
 
     return true;
 }
@@ -278,7 +278,7 @@ PARSE_TEST(tuple_nested_vector_test, "(key:[value2])")
     buffer v2 = table_find(v1, intern_u64(0));
     test_assert(v2 != NULL);
     test_strings_equal(v2->contents, "value2");
-    deallocate_buffer(v2);
+    deallocate_string(v2);
 
     return true;
 }
@@ -297,7 +297,7 @@ PARSE_TEST(vector_nested_vector_test, "[[value2]]")
     buffer v2 = table_find(v1, intern_u64(0));
     test_assert(v2 != NULL);
     test_strings_equal(v2->contents, "value2");
-    deallocate_buffer(v2);
+    deallocate_string(v2);
 
     return true;
 }
@@ -312,7 +312,7 @@ PARSE_TEST(quoted_tuple_value_test, "(key:\"value\")")
     buffer v1 = table_find(root, intern(wrap_buffer_cstring(h, "key")));
     test_assert(v1 != NULL);
     test_strings_equal(v1->contents, "value");
-    deallocate_buffer(v1);
+    deallocate_string(v1);
 
     return true;
 }
@@ -327,7 +327,7 @@ PARSE_TEST(quoted_tuple_name_test, "(\"key\":value)")
     buffer v1 = table_find(root, intern(wrap_buffer_cstring(h, "key")));
     test_assert(v1 != NULL);
     test_strings_equal(v1->contents, "value");
-    deallocate_buffer(v1);
+    deallocate_string(v1);
 
     return true;
 }
@@ -342,7 +342,7 @@ PARSE_TEST(quoted_tuple_name_value_test, "(\"key\":\"value\")")
     buffer v1 = table_find(root, intern(wrap_buffer_cstring(h, "key")));
     test_assert(v1 != NULL);
     test_strings_equal(v1->contents, "value");
-    deallocate_buffer(v1);
+    deallocate_string(v1);
 
     return true;
 }
@@ -357,7 +357,7 @@ PARSE_TEST(spaced_quoted_tuple_name_value_test, "( \"key\" : \"value\" )")
     buffer v1 = table_find(root, intern(wrap_buffer_cstring(h, "key")));
     test_assert(v1 != NULL);
     test_strings_equal(v1->contents, "value");
-    deallocate_buffer(v1);
+    deallocate_string(v1);
 
     return true;
 }
@@ -372,7 +372,7 @@ PARSE_TEST(quoted_spaced_tuple_value_test, "(key:\"hello value\")")
     buffer v1 = table_find(root, intern(wrap_buffer_cstring(h, "key")));
     test_assert(v1 != NULL);
     test_strings_equal(v1->contents, "hello value");
-    deallocate_buffer(v1);
+    deallocate_string(v1);
 
     return true;
 }
@@ -387,7 +387,7 @@ PARSE_TEST(quoted_spaced_tuple_name_test, "(\"hello key\":value)")
     buffer v1 = table_find(root, intern(wrap_buffer_cstring(h, "hello key")));
     test_assert(v1 != NULL);
     test_strings_equal(v1->contents, "value");
-    deallocate_buffer(v1);
+    deallocate_string(v1);
 
     return true;
 }
@@ -402,7 +402,7 @@ PARSE_TEST(quoted_spaced_tuple_name_value_test, "(\"hello key\":\"hello value\")
     buffer v1 = table_find(root, intern(wrap_buffer_cstring(h, "hello key")));
     test_assert(v1 != NULL);
     test_strings_equal(v1->contents, "hello value");
-    deallocate_buffer(v1);
+    deallocate_string(v1);
 
     return true;
 }

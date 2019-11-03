@@ -210,7 +210,7 @@ bitmap allocate_bitmap(heap h, u64 length)
     if (b == INVALID_ADDRESS)
 	return b;
     u64 mapbytes = b->mapbits >> 3;
-    b->alloc_map = allocate_buffer(h, mapbytes);
+    b->alloc_map = allocate_buffer(h, h, allocate(h, mapbytes), mapbytes);
     if (b->alloc_map == INVALID_ADDRESS)
 	return INVALID_ADDRESS;
     zero(bitmap_base(b), mapbytes);
@@ -221,7 +221,7 @@ bitmap allocate_bitmap(heap h, u64 length)
 void deallocate_bitmap(bitmap b)
 {
     if (b->alloc_map)
-	deallocate_buffer(b->alloc_map);
+	deallocate_buffer(b->h, b->alloc_map);
     deallocate(b->h, b, sizeof(struct bitmap));
 }
 
@@ -248,7 +248,7 @@ bitmap bitmap_clone(bitmap b)
     bitmap c = allocate_bitmap_internal(b->h, b->maxbits);
     c->mapbits = b->mapbits;
     u64 mapbytes = c->mapbits >> 3;
-    c->alloc_map = allocate_buffer(b->h, mapbytes);
+    c->alloc_map = allocate_buffer(b->h, b->h, allocate(b->h, mapbytes), mapbytes);
     if (c->alloc_map == INVALID_ADDRESS)
 	return INVALID_ADDRESS;
     runtime_memcpy(buffer_ref(c->alloc_map, 0), buffer_ref(b->alloc_map, 0), mapbytes);

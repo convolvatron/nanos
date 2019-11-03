@@ -166,7 +166,7 @@ static parser is_end_of_tuple(heap h, completion c, tuple t, err_internal e, par
     parser *p = allocate(h, sizeof(parser));
     parser cew = ignore_whitespace(h, self);
     completion nc = closure(h, name_complete, h, t, cew, e);
-    *p = ignore_whitespace(h, (void *)closure(h, parse_name, h, nc, allocate_buffer(h, 100)));
+    *p = ignore_whitespace(h, (void *)closure(h, parse_name, h, nc, allocate_string(h, 10)));
     return apply(*p, in);
 }
 
@@ -210,7 +210,7 @@ static parser parse_value(heap h, completion c, err_internal err, character in)
         }
     default:
         {
-            parser p = ignore_whitespace(h, (void *)closure(h, parse_value_string, h, c, allocate_buffer(h, 8)));
+            parser p = ignore_whitespace(h, (void *)closure(h, parse_value_string, h, c, allocate_string(h, 10)));
             return apply(p, in);
         }
     }
@@ -256,6 +256,7 @@ parser tuple_parser(heap h, parse_finish c, parse_error err)
 
 parser parser_feed (parser p, buffer b)
 {
+    // generic foreach!
     string_foreach(i, b) p = apply(p, i);
     return p;
 }

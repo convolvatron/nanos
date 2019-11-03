@@ -106,7 +106,8 @@ vqmsg allocate_vqmsg(virtqueue vq)
     vqmsg m = allocate(h, sizeof(struct vqmsg));
     list_init(&m->l);
     m->count = 0;
-    m->descv = allocate_buffer(h, sizeof(struct vring_desc) * VQMSG_DEFAULT_SIZE);
+    bytes qlen = sizeof(struct vring_desc) * VQMSG_DEFAULT_SIZE;
+    m->descv = allocate_buffer(h, h, allocate(h, qlen), qlen);
     if (m->descv == INVALID_ADDRESS) {
         deallocate(h, m, sizeof(struct vqmsg));
         return INVALID_ADDRESS;
@@ -118,7 +119,7 @@ vqmsg allocate_vqmsg(virtqueue vq)
 /* must be safe at interrupt level */
 void deallocate_vqmsg_irq(virtqueue vq, vqmsg m)
 {
-    deallocate_buffer(m->descv);
+    deallocate_buffer(vq->dev->general, m->descv);
     deallocate(vq->dev->general, m, sizeof(struct vqmsg));
 }
 

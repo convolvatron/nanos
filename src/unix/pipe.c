@@ -80,7 +80,7 @@ static void pipe_release(pipe p)
     if (!p->ref_cnt || (fetch_and_add(&p->ref_cnt, -1) == 1)) {
         pipe_debug("%s(%p): deallocating pipe\n", __func__, p);
         if (p->data != INVALID_ADDRESS)
-            deallocate_buffer(p->data);
+            deallocate_buffer(p->h, p->data);
 
         unix_cache_free(get_unix_heaps(), pipe, p);
     }
@@ -273,7 +273,7 @@ int do_pipe2(int fds[2], int flags)
     pipe->files[PIPE_WRITE].pipe = pipe;
     pipe->ref_cnt = 0;
     pipe->max_size = DEFAULT_PIPE_MAX_SIZE;
-    pipe->data = allocate_buffer(pipe->h, INITIAL_PIPE_DATA_SIZE);
+    pipe->data = allocate_buffer(pipe->h, pipe->h, allocate(pipe->h, INITIAL_PIPE_DATA_SIZE), INITIAL_PIPE_DATA_SIZE);
     if (pipe->data == INVALID_ADDRESS) {
         msg_err("failed to allocate pipe's data buffer\n");
         pipe_release(pipe);

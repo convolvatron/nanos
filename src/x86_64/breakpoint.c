@@ -4,7 +4,7 @@
 typedef struct breakpoint {
     u32 address;
     boolean assigned;
-    void (*set)();
+    void (*bset)();
 } *breakpoint;
 
 // there are 7 of these
@@ -41,7 +41,7 @@ boolean breakpoint_insert(u64 a, u8 type, u8 log_length)
 
             breakpoints[i].assigned = true;
             breakpoints[i].address = a;
-            breakpoints[i].set(a);
+            breakpoints[i].bset(a);
             
             mov_from_cr("dr7", dr7);
             // r/w bits

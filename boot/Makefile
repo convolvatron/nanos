@@ -1,22 +1,12 @@
 PROGRAMS=	stage2.elf
 
+include ../src/runtime/runtime.mk
+
 SRCS-stage2.elf= \
 	$(CURDIR)/stage2.c \
 	$(CURDIR)/service32.s \
 	$(SRCDIR)/drivers/ata.c \
-	$(SRCDIR)/runtime/buffer.c \
-	$(SRCDIR)/runtime/extra_prints.c \
-	$(SRCDIR)/runtime/format.c \
-	$(SRCDIR)/runtime/memops.c \
-	$(SRCDIR)/runtime/range.c \
-	$(SRCDIR)/runtime/runtime_init.c \
-	$(SRCDIR)/runtime/pqueue.c \
-	$(SRCDIR)/runtime/symbol.c \
-	$(SRCDIR)/runtime/table.c \
-	$(SRCDIR)/runtime/timer.c \
-	$(SRCDIR)/runtime/tuple.c \
-	$(SRCDIR)/runtime/merge.c \
-	$(SRCDIR)/runtime/string.c \
+        $(RUNTIME)\
 	$(SRCDIR)/x86_64/elf.c \
 	$(SRCDIR)/x86_64/kvm_platform.c \
 	$(SRCDIR)/x86_64/page.c \

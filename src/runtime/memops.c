@@ -124,6 +124,13 @@ void runtime_memcpy(void *a, const void *b, bytes len)
     }
 }
 
+void *memcpy(void *a, const void *b, unsigned long len)
+{
+    runtime_memcpy(a, b, len);
+    return a;
+}
+
+    
 void runtime_memset(u8 *a, u8 b, bytes len)
 {
     if (len < sizeof(long)) {
@@ -149,6 +156,12 @@ void runtime_memset(u8 *a, u8 b, bytes len)
         *dest++ = word;
     }
     memset_8(dest, b, end_len);
+}
+
+void *memset(void *a, int b, unsigned long len)
+{
+    runtime_memset(a, b, len);
+    return a;
 }
 
 int runtime_memcmp(const void *a, const void *b, bytes len)

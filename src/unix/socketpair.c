@@ -278,7 +278,7 @@ static void sockpair_release(struct sockpair *sockpair)
 {
     if (!sockpair->ref_cnt || (fetch_and_add(&sockpair->ref_cnt, -1) == 1)) {
         if (sockpair->data != INVALID_ADDRESS) {
-            deallocate_buffer(sockpair->data);
+            deallocate_buffer(sockpair->h, sockpair->data);
         }
         deallocate(sockpair->h, sockpair, sizeof(*sockpair));
     }
@@ -311,7 +311,7 @@ sysreturn socketpair(int domain, int type, int protocol, int sv[2]) {
         return set_syscall_error(current, ENOMEM);
     }
     sockpair->h = h;
-    sockpair->data = allocate_buffer(sockpair->h, 128);
+    sockpair->data = allocate_buffer(sockpair->h, sockpair->h, allocate(sockpair->h, 128), 128);
     if (sockpair->data == INVALID_ADDRESS) {
         msg_err("failed to allocate socketpair data buffer\n");
         sockpair_release(sockpair);
