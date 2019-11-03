@@ -38,20 +38,6 @@ static struct kernel_heaps kh;
 static u64 stack_base;
 static u64 identity_base;
 
-static u64 s[2] = { 0xa5a5beefa5a5cafe, 0xbeef55aaface55aa };
-
-u64 random_u64()
-{
-    u64 s0 = s[0];
-    u64 s1 = s[1];
-    u64 result = s0 + s1;
-
-    s1 ^= s0;
-    s[0] = ROL(s0, 55) ^ s1 ^ (s1 << 14); // a, b
-    s[1] = ROL(s1, 36); // c
-    return result;
-}
-
 // defined in service32.s
 extern void bios_tty_write(char *s, bytes count);
 extern void bios_read_sectors(void *buffer, int start_sector, int sector_count);

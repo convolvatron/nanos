@@ -89,7 +89,7 @@ void mcache_dealloc(heap h, u64 a, bytes b)
 
     /* We don't really need the size, but if we're given a valid one,
        make some attempt to verify it. */
-    if (b != -1ull && b > o->pagesize) {
+    if (b != -1ul && b > o->pagesize) {
 	console("mcache ");
 	print_u64(u64_from_pointer(m));
 	console(": dealloc size (");

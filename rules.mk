@@ -53,7 +53,8 @@ KERNCFLAGS=	-nostdinc \
 		-fdata-sections \
 		-ffunction-sections
 KERNCFLAGS+=	-fno-omit-frame-pointer
-KERNLDFLAGS=	--gc-sections -n
+#KERNLDFLAGS=	--gc-sections -n
+KERNLDFLAGS=	--gc-sections
 
 TARGET_ROOT=	$(NANOS_TARGET_ROOT)
 GCC_VER=	6

@@ -96,6 +96,7 @@ void init_runtime(kernel_heaps kh)
     register_format('c', format_character, 0);
     init_tuples(allocate_tagged_region(kh, tag_tuple));
     init_symbols(allocate_tagged_region(kh, tag_symbol), h);
+    kh->method_rewind = allocate_tagged_region(kh, tag_method_rewind);
     ignore = closure(h, ignore_body);
     ignore_status = (void*)ignore;
     errheap = h;
