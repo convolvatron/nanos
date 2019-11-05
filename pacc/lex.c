@@ -47,7 +47,7 @@ static boolean next(buffer b, int expect) {
 // Reads a number literal. Lexer's grammar on numbers is not strict.
 // Integers and floating point numbers and different base numbers are not distinguished.
 static Token *read_number(buffer b) {
-    buffer d = allocate_buffer(transient, 10);
+    buffer d = allocate_buffer(transient, allocate(transient, 10), transient, 10);
     for (;;) {
         int c = readc(b);
         // this actually checks for hex, but oddly is safe in this case
@@ -127,7 +127,7 @@ static Token *read_char(buffer b) {
 // Reads a string literal.
 static Token *read_string(buffer b) {
     heap h = transient;
-    buffer d = allocate_buffer(h, 10);
+    buffer d = allocate_buffer(h, allocate(h, 10), h, 10);
     for (;;) {
         if (buffer_length(b) == 0)  errorp(pos, "unterminated string");
         int c = readc(b);
@@ -144,7 +144,7 @@ static Token *read_string(buffer b) {
 }
 
 static Token *read_ident(heap h, buffer b) {
-    buffer d = allocate_buffer(h, 10);
+    buffer d = allocate_buffer(h, allocate(h, 10), h, 10);
     for (;;) {
         u8 c = *(u8 *)buffer_ref(b, 0);
         // check to make sure this handles utf8

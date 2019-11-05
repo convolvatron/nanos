@@ -2,7 +2,13 @@ PROGRAMS = pacc
 
 include ../src/runtime/runtime.mk
 
-SRCS-pacc = $(CURDIR)/debug.c  $(CURDIR)/main.c $(CURDIR)/lex.c $(CURDIR)/parse.c $(RUNTIME) $(SRCDIR)/unix_process/unix_process_runtime.c
+SRCS-pacc = $(CURDIR)/scope.c\
+	$(CURDIR)/debug.c\
+	$(CURDIR)/main.c\
+	$(CURDIR)/lex.c\
+	$(CURDIR)/parse.c\
+	$(RUNTIME)\
+	$(SRCDIR)/unix_process/unix_process_runtime.c
 
 CFLAGS+=-I$(SRCDIR)/unix_process \
 	-I$(SRCDIR)/x86_64\
@@ -11,3 +17,6 @@ CFLAGS+=-I$(SRCDIR)/unix_process \
 all: $(PROGRAMS)
 
 include ../rules.mk
+
+test: $(OUTDIR)/pacc/bin/pacc
+	$< t1.c

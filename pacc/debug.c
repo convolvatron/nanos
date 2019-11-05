@@ -20,7 +20,7 @@ static string string_from_type(Type ty) {
     if ((kind == sym(union)) || (kind == sym(struct)))  {
         //        symbol key = intern(aprintf(transient, "%p", ty));
         if (sget(ty, sym(fields))) {
-            buffer b = allocate_buffer(transient, 10);
+            buffer b = allocate_buffer(transient, allocate(transient, 10), transient, 10);
             bprintf(b, "(%s", kind);
             // ordering of struct entries .. matters semantically
             table_foreach(get(ty, sym(fields)), fkey, ftype) 
@@ -31,7 +31,7 @@ static string string_from_type(Type ty) {
     }
     
     if (kind == sym(func)) {
-        buffer b = allocate_buffer(transient, 10);
+        buffer b = allocate_buffer(transient, allocate(transient, 10), transient, 10);
         bprintf(b, "(");
         if (sget(ty, sym(parameters))) {
             boolean first = true;

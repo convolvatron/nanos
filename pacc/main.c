@@ -17,7 +17,7 @@ buffer read_file(heap h, string filename)
     if (fd < 0) {
         halt("couldn't open file %b", filename);
     }
-    buffer out = allocate_buffer(h, len);
+    buffer out = allocate_buffer(h, allocate(h, len), h, len);
     int r = read(fd, out->contents, len);
     if (r != len) {
         halt("short read %b", filename);
