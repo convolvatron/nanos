@@ -152,7 +152,7 @@ typedef void *value;
 #define tag_symbol (1ull)
 #define tag_tuple (2ull)
 #define tag_string (3ull)
-#define tag_buffer_promise (4ull) //?
+#define tag_function_tuple (4ull)
 #define tag_max (5ull)
 
 #include <symbol.h>
@@ -179,6 +179,7 @@ typedef closure_type(thunk, void);
 /* clocksource and timer facilities */
 #include <clock.h>
 #include <timer.h>
+#include <management.h>
 
 void kernel_shutdown_ex(status_handler completion) __attribute__((noreturn));
 

@@ -65,3 +65,4 @@ static inline tuple lookup(tuple t, symbol a)
     if (!c) return c;
     return table_find(c, a);
 }
+

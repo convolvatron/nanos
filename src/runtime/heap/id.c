@@ -278,6 +278,17 @@ static u64 alloc_subrange(id_heap i, bytes count, u64 start, u64 end)
     return INVALID_PHYSICAL;
 }
 
+
+closure_function(1, 0, tuple, management, id_heap, i) {
+    tuple t = allocate_tuple();
+    // we can make a template here. heapy.
+    table_set(t, sym(allocated), aprintf(transient, "%d", bound(i)->allocated));
+    // it would be nice to be able to refer to other objects
+    //    if (t->parent) 
+    //        table_set(t, sym(parent), t->parent);    
+    return t;
+}
+
 id_heap allocate_id_heap(heap meta, heap map, bytes pagesize)
 {
     assert((pagesize & (pagesize-1)) == 0); /* pagesize is power of 2 */
@@ -307,6 +318,7 @@ id_heap allocate_id_heap(heap meta, heap map, bytes pagesize)
 	deallocate(meta, i, sizeof(struct id_heap));
 	return INVALID_ADDRESS;
     }
+    set_management_simple(i, closure(meta, management, i));
     return i;
 }
 
