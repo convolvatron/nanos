@@ -178,9 +178,8 @@ closure_function(3, 0, void, startup,
         rprintf("Debug http server started on port 9090\n");
     }
 #endif
-    if (table_find(root, sym(management_http))) {
-        
-    }
+    if (table_find(root, sym(management_http))) 
+        init_management_http(general, root);
     
     value p = table_find(root, sym(program));
     assert(p);

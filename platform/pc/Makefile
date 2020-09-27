@@ -14,6 +14,7 @@ SRCS-kernel.img= \
 	$(SRCDIR)/gdb/gdbtcp.c \
 	$(SRCDIR)/gdb/gdbutil.c \
 	$(SRCDIR)/http/http.c \
+	$(SRCDIR)/http/management_http.c \
 	$(SRCDIR)/kernel/backed_heap.c \
 	$(SRCDIR)/kernel/elf.c \
 	$(SRCDIR)/kernel/kernel.c \

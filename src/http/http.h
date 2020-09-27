@@ -36,5 +36,5 @@ http_listener allocate_http_listener(heap h, u16 port);
 void deallocate_http_listener(heap h, http_listener hl);
 
 // ??
-void init_management_http(tuple root);
+void init_management_http(heap h, tuple root);
     
