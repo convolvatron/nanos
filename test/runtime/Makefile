@@ -20,6 +20,7 @@ PROGRAMS= \
 	netsock \
 	nullpage \
 	paging \
+	pause \
 	pipe \
 	readv \
 	rename \
@@ -131,6 +132,9 @@ LDFLAGS-nullpage=	-static
 
 SRCS-paging=		$(CURDIR)/paging.c
 LDFLAGS-paging=		-static
+
+SRCS-pause=		$(CURDIR)/pause.c
+LDFLAGS-pause=		-static
 
 SRCS-pipe= \
 	$(CURDIR)/pipe.c \

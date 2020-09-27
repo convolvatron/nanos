@@ -4,6 +4,7 @@ PROGRAMS= \
 	id_heap_test \
 	memops_test \
 	network_test \
+	management_test \
 	objcache_test \
 	parser_test \
 	pqueue_test \
@@ -31,6 +32,15 @@ SRCS-id_heap_test= \
 	$(CURDIR)/id_heap_test.c \
 	$(RUNTIME)\
 	$(SRCDIR)/unix_process/unix_process_runtime.c
+
+SRCS-management_test= \
+	$(CURDIR)/management_test.c \
+	$(SRCDIR)/http/http.c \
+	$(RUNTIME)\
+	$(SRCDIR)/unix_process/unix_process_runtime.c \
+	$(SRCDIR)/unix_process/mmap_heap.c \
+	$(SRCDIR)/unix_process/socket_user.c \
+	$(SRCDIR)/unix_process/tiny_heap.c
 
 SRCS-memops_test= \
 	$(CURDIR)/memops_test.c \

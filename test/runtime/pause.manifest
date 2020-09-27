@@ -1,0 +1,7 @@
+(
+    children:(pause:(contents:(host:output/test/runtime/bin/pause)))
+    program:/pause
+    management_http:8080,
+    arguments:[]
+    environment:()
+)

@@ -34,3 +34,7 @@ void http_register_default_handler(http_listener hl, http_request_handler each);
 connection_handler connection_handler_from_http_listener(http_listener hl);
 http_listener allocate_http_listener(heap h, u16 port);
 void deallocate_http_listener(heap h, http_listener hl);
+
+// ??
+void init_management_http(tuple root);
+    

@@ -15,7 +15,10 @@ void set_management_simple(void *obj, tuple_generator t)
     
 }
 
+
+
 void init_management(heap h)
 {
     mheap = h;
 }
+

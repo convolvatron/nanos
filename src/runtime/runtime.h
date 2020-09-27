@@ -179,7 +179,6 @@ typedef closure_type(thunk, void);
 /* clocksource and timer facilities */
 #include <clock.h>
 #include <timer.h>
-#include <management.h>
 
 void kernel_shutdown_ex(status_handler completion) __attribute__((noreturn));
 
@@ -228,3 +227,5 @@ status_handler apply_merge(merge m);
 void __stack_chk_guard_init();
 
 #define _countof(a) (sizeof(a) / sizeof(*(a)))
+
+#include <management.h>
