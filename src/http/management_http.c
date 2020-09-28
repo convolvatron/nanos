@@ -9,7 +9,16 @@ closure_function(3, 1, void, each_http_request,
                  buffer_handler, out,
                  value, v)
 {
+    heap h = bound(h);
     rprintf("http: %v\n", v);
+    vector vsl = vector_from_tuple(h, table_find(v, sym(start_line)));
+    buffer url = vector_get(vsl, 1);
+    rprintf("http: %b\n", url);    
+    vector terms = split(h, url, '/');
+    buffer i;
+    vector_foreach(terms, i) { // backwards, non-declaring
+        rprintf("term %b\n", i);
+    }
     send_http_response(bound(out), timm("Content-Type", "text/html"),
                        aprintf(bound(h),
                                "<html>unibooty!</html>"));
