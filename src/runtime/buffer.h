@@ -180,6 +180,11 @@ static inline buffer buffer_cstring(heap h, const char *x)
     return b;
 }
 
+static inline void buffer_concat(buffer sdest, buffer s)
+{
+    buffer_append(sdest, buffer_ref(s, 0), buffer_length(s));
+}
+
 // little endian variants
 #define WRITE_BE(bits)                                          \
     static inline void buffer_write_be##bits(buffer b, u64 x)   \

@@ -38,3 +38,4 @@ void deallocate_http_listener(heap h, http_listener hl);
 // ??
 void init_management_http(heap h, tuple root);
     
+string base64_encode(heap h, buffer x);
