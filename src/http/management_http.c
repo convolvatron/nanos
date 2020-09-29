@@ -14,16 +14,14 @@ closure_function(1, 2, void, each,
 buffer subkeys(heap h, value m)
 {
     buffer b = allocate_buffer(h, 100);
-    switch (tagof(b)) {
+    switch (tagof(m)) {
     case tag_tuple:
-        table_foreach(m, k, v)
-            bprintf(b, "%b ", k);
-        
+        table_foreach(m, k, v) 
+            bprintf(b, "%v ", k);
+        break;
     case tag_function_tuple:
-        {
-            function_tuple ft = m;
-            apply(ft->i, closure(h, each, b));
-        }
+        apply(((function_tuple)m)->i, closure(h, each, b));
+        break;
     }
     return b;
 }
@@ -46,11 +44,10 @@ closure_function(3, 1, void, each_http_request,
         if (buffer_length(i)) { // really only the first one
             where = get(where, intern(i));
         }
-        rprintf("term %b\n", i);
     }
     buffer b = where;
-    if (tagof(b) != tag_string) {
-        b = subkeys(h, b);
+    if (tagof(where) != tag_string) {
+        b = subkeys(h, where);
     }
     send_http_response(bound(out), timm("Content-Type", "text/html"), b);
 }

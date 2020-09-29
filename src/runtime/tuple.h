@@ -66,6 +66,7 @@ typedef struct function_tuple {
 
 static inline value get(value v, symbol s)
 {
+    rprintf("get %p %d\n", v, tagof(v));
     switch (tagof(v)){
     case tag_tuple:
         return table_find(v, s);
