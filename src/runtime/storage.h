@@ -1,3 +1,4 @@
+// xxx - eah - this seems pretty platform specific for the runtime
 struct partition_entry {
     u8 active;
     u8 chs_start[3];

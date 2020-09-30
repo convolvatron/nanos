@@ -4,6 +4,7 @@
 
 extern  char **_binary_management_js_js_start;
 extern  u64 _binary_management_js_js_size;
+static buffer management_js;
 
 closure_function(1, 2, void, each,
                  buffer, b,
@@ -37,22 +38,39 @@ closure_function(3, 1, void, each_http_request,
                  value, v)
 {
     heap h = bound(h);
-    vector vsl = vector_from_tuple(h, table_find(v, sym(start_line)));
-    buffer url = vector_get(vsl, 1);
+    buffer url = get(get(v, sym(start_line)), sym(1));
     vector terms = split(h, url, '/');
-    buffer i;
+    int index = 0;
     value where = bound(root);
-    
-    vector_foreach(terms, i) { // backwards, non-declaring
-        if (buffer_length(i)) { // really only the first one
-            where = get(where, intern(i));
+
+    // leading slash
+    buffer first_term = vector_get(terms, index);
+    if (!first_term || (buffer_length(first_term) == 0)) index++;
+
+    rprintf("index: %d %d\n", index, vector_length(terms));
+    // root - serve up js app
+    if (index == vector_length(terms)) {
+        // surely x-javascript isn't the correct mimetype anymore
+        send_http_response(bound(out),
+                           timm("Content-Type", "application/x-javascript"),
+                           management_js);
+
+    } else {
+        // tree
+        if (buffer_compare_with_cstring(vector_get(terms,index), "tree")) {
+            index++;
+            while (where && index < vector_length(terms)) {
+                buffer term = vector_get(terms, index);
+                where = get(where, intern(term));
+            }
+            // return 404
+            buffer b = where;
+            if (tagof(where) != tag_string) {
+                b = subkeys(h, where);
+            }
+            send_http_response(bound(out), timm("Content-Type", "text/html"), b);
         }
     }
-    buffer b = where;
-    if (tagof(where) != tag_string) {
-        b = subkeys(h, where);
-    }
-    send_http_response(bound(out), timm("Content-Type", "text/html"), b);
 }
 
 closure_function(2, 1, buffer_handler, each_http_connection,
@@ -67,10 +85,11 @@ closure_function(2, 1, buffer_handler, each_http_connection,
 void init_management_http(heap h, tuple root) {
     string r = get(root, sym(management_http));
     u64 port;
-    rprintf("management: %x %x\n",_binary_management_js_js_start,
-            _binary_management_js_js_size);
+
+    management_js = wrap_buffer(h, &_binary_management_js_js_start,
+                                (unsigned long)&_binary_management_js_js_size);
     if (r && parse_int(r, 10, &port)) {
-        // and presumably not truncation
+        // xxx - check to make sure there weren't high order bits set
         rprintf("management http %d\n", port);
         http_listener hl = allocate_http_listener(h, port);
         assert(hl != INVALID_ADDRESS);

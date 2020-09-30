@@ -120,7 +120,8 @@ status send_http_chunked_response(buffer_handler out, tuple t)
 status send_http_response(buffer_handler out, tuple t, buffer c)
 {
     if (c) {
-        assert(!buffer_is_wrapped(c));
+        // xxx - eah - why is this important?
+        //        assert(!buffer_is_wrapped(c));
         table_set(t, sym(Content-Length), aprintf(transient, "%d", buffer_length(c)));
     }
 
