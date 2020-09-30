@@ -54,7 +54,8 @@ LN=		ln
 SED=		sed
 STRIP=		$(CROSS_COMPILE)strip
 TAR=		tar
-OBJCOPY=	$(CROSS_COMPILE)objcopy
+# xxx - dont commit
+OBJCOPY=	x86_64-elf-objcopy # $(CROSS_COMPILE)objcopy
 OBJDUMP=	$(CROSS_COMPILE)objdump
 RM=		rm -f
 TOUCH=		touch
@@ -119,6 +120,10 @@ cmd_ld=		$(LD) $(LDFLAGS) $(LDFLAGS-$(@F)) $(OBJS_BEGIN) $(filter %.o,$^) $(LIBS
 msg_cc=		CC	$@
 cmd_cc=		$(CC) $(DEPFLAGS) $(CFLAGS) $(CFLAGS-$(<F)) -c $< -o $@
 
+# parametertize elf arch...also name
+msg_include=	INCLUDE	$@
+cmd_include= 	(cd $(dir $<) ; $(OBJCOPY) --input binary --output-target elf64-x86-64 $(notdir $<) $@)
+
 msg_as=		AS	$@
 cmd_as=		$(AS) $(AFLAGS) $(AFLAGS-$(<F)) $< -o $@
 
@@ -139,7 +144,8 @@ cmd_vendor=	$(RM) -r $(@D) && $(GIT) clone $(GITFLAGS) $(@D) && $(TOUCH) $@
 
 define build_program
 PROG-$1=	$(OBJDIR)/bin/$1
-OBJS-$1=	$$(foreach s,$$(filter %.c %.s,$$(SRCS-$1)),$$(call objfile,.o,$$s))
+# xxx - this causes sources in the SRC list with unknown prefixes to be discarded
+OBJS-$1=	$$(foreach s,$$(filter %.c %.s %.js,$$(SRCS-$1)),$$(call objfile,.o,$$s))
 OBJDIRS-$1=	$$(sort $$(dir $$(OBJS-$1)))
 GENHEADERS-$1=	$(OBJDIR)/closure_templates.h
 DEPS-$1=	$$(patsubst %.o,%.d,$$(OBJS-$1))
@@ -204,6 +210,11 @@ cleandepend:
 # implicit rules
 
 .SUFFIXES:
+.SUFFIXES: .js
+
+$(OBJDIR)/%.o: $(ROOTDIR)/%.js
+	@$(MKDIR) $(dir $@)
+	$(call cmd,include)
 
 $(OBJDIR)/%.o: $(ROOTDIR)/%.s
 	@$(MKDIR) $(dir $@)

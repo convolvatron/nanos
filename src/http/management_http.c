@@ -2,6 +2,9 @@
 #include <net.h>
 #include <http.h>
 
+extern  char **_binary_management_js_js_start;
+extern  u64 _binary_management_js_js_size;
+
 closure_function(1, 2, void, each,
                  buffer, b,
                  value, k,
@@ -64,6 +67,8 @@ closure_function(2, 1, buffer_handler, each_http_connection,
 void init_management_http(heap h, tuple root) {
     string r = get(root, sym(management_http));
     u64 port;
+    rprintf("management: %x %x\n",_binary_management_js_js_start,
+            _binary_management_js_js_size);
     if (r && parse_int(r, 10, &port)) {
         // and presumably not truncation
         rprintf("management http %d\n", port);
