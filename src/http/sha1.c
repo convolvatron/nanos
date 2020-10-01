@@ -16,7 +16,7 @@ A million repetitions of "a"
 /* #define SHA1HANDSOFF * Copies data before messing with it. */
 
 
-#define LITTLE_ENDIAN 1
+// #define LITTLE_ENDIAN 1
 
 #include <runtime.h>
 
@@ -279,14 +279,10 @@ void SHA1Final(
 void sha1(buffer out, buffer in)
 {
     SHA1_CTX ctx;
-    unsigned int ii;
 
     SHA1Init(&ctx);
-    for (ii=0; ii<buffer_length(in); ii+=1)
-        SHA1Update(&ctx, buffer_ref(in, ii), 1);
-    // is that right? out, 0
+    SHA1Update(&ctx, buffer_ref(in, 0), buffer_length(in));
     buffer_extend(out, 20);
-    // is this right? 
     SHA1Final(buffer_ref(out, out->end), &ctx);
     out->end += 20;
 }

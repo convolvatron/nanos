@@ -47,17 +47,13 @@ closure_function(3, 1, void, each_http_request,
     // leading slash
     buffer first_term = vector_get(terms, index);
     if (!first_term || (buffer_length(first_term) == 0)) index++;
-
-    // ws demux
-    
-    rprintf("%t\n", v);
     
     // root - serve up js app
     if (index == vector_length(terms)) {
         // xxx - the browser signatures differ slightly here
-        if (get(v, sym(Upgrade)) == symbol_string(sym("websocket"))) {
-            table props = allocate_tuple();
-            websocket_send_upgrade(h, props, out, out);
+        buffer up  = get(v, sym(Upgrade));
+        if (up && !buffer_compare(up, symbol_string(sym("websocket")))) {
+            websocket_send_upgrade(h, v, out, out);
         } else {
             // surely x-javascript isn't the correct mimetype anymore
             // xxx - this is consumed
@@ -95,10 +91,19 @@ closure_function(2, 1, buffer_handler, each_http_connection,
     return allocate_http_parser(h, closure(h, each_http_request, h, bound(root), out));
 }
 
+void sha1(buffer, buffer);
+
 void init_management_http(heap h, tuple root) {
     string r = get(root, sym(management_http));
     u64 port;
 
+    // should be 84983e44 1c3bd26e baae4aa1 f95129e5 e54670f1
+    buffer b = allocate_buffer(h, 21);
+
+    sha1(b, symbol_string(sym(abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq)));
+    rprintf ("%X\n", b);
+        
+        
     if (r && parse_int(r, 10, &port)) {
         // xxx - check to make sure there weren't high order bits set
         rprintf("management http %d\n", port);

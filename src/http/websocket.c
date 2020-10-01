@@ -158,27 +158,28 @@ buffer_handler websocket_send_upgrade(heap h,
     websocket w = allocate(h, sizeof(struct websocket));
     string ekey;
     string key;
-
     if (!(ekey=get(props, sym(Sec-WebSocket-Key)))) {
         // something tasier on the error handling...shutdown
         // connection and have a bad edge
         return 0;
     } 
 
-    key = allocate_buffer(h, ekey->length);
-    buffer_concat(key, ekey);
-    
     // fix
     w->reassembly = allocate_buffer(h, 1000);
     w->write = down;
     w->client = up;
     w->h = h;
 
-    char *fixed_uuid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-    buffer_append(key, fixed_uuid, sizeof(fixed_uuid));
+    char fixed_uuid[] = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+    key = allocate_buffer(h, ekey->length + sizeof(fixed_uuid));
+    buffer_concat(key, ekey);
+    // xxx - didn't extend?
+    buffer_append(key, fixed_uuid, sizeof(fixed_uuid)-1);
+    rprintf ("sha in %b\n", key);
     buffer sh = allocate_buffer(h, 20);
     sha1(sh, key);
     string r = base64_encode(h, sh);
+    rprintf("sha %X %b\n", sh, r);    
     buffer upgrade = allocate_buffer(h, 200);
 
     // could use tuple
@@ -189,7 +190,7 @@ buffer_handler websocket_send_upgrade(heap h,
     buffer_concat(upgrade, r);
     outline(upgrade, "");    
     outline(upgrade, "");
-    apply(down, upgrade);
+    rprintf("pop %b\n", upgrade);
     
     register_timer(runloop_timers, CLOCK_ID_MONOTONIC, 0, true, seconds(5),
                    closure(w->h, send_keepalive, w, allocate_buffer(w->h, 0)));

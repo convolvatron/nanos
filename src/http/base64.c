@@ -13,24 +13,25 @@ string base64_encode(heap h, buffer x)
 
     while(length > 0) {
         u32 triple = 0;
-        runtime_memcpy(&triple, buffer_ref(x, bcount), (length<24?length>>3:3));
+        // use read_be32?
+        runtime_memcpy(&triple, buffer_ref(x, bcount), (length<3?length:3));
         triple = htonl(triple);
         triple >>= 8;
-        bcount +=24;
+        bcount += 3;
         
         buffer_write_byte(out, map[(triple >> 18) & 0x3f]);
         buffer_write_byte(out, map[(triple >> 12) & 0x3f]);
         
-        if (length == 8) 
+        if (length == 1) 
             buffer_write_byte(out, '=');
         else 
             buffer_write_byte(out, map[(triple >> 6) & 0x3f]);
-
-        if (length <24) 
+        
+        if (length < 3) 
             buffer_write_byte(out, '=');
         else 
             buffer_write_byte(out, map[triple & 0x3f]);
-        length -= 24;
+        length -= 3;
     }
     return(out);
 }
