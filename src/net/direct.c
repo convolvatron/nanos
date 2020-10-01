@@ -78,8 +78,10 @@ static void direct_conn_send_internal(direct_conn dc, qbuf q)
 
         /* pop off qbuf if work finished, else loop around to attempt to send more */
         if (!q->b || buffer_length(q->b) == 0) {
-            if (q->b)
-                deallocate_buffer(q->b);
+            if (q->b) {
+                if (!q->b->wrapped)  // xxx - eah - lifetime
+                    deallocate_buffer(q->b);
+            }
             list_delete(&q->l);
             deallocate(dc->d->h, q, sizeof(struct qbuf));
         }

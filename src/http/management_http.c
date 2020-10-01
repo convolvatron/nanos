@@ -38,6 +38,7 @@ closure_function(3, 1, void, each_http_request,
                  value, v)
 {
     heap h = bound(h);
+    buffer_handler out = bound(out);
     buffer url = get(get(v, sym(start_line)), sym(1));
     vector terms = split(h, url, '/');
     int index = 0;
@@ -47,14 +48,26 @@ closure_function(3, 1, void, each_http_request,
     buffer first_term = vector_get(terms, index);
     if (!first_term || (buffer_length(first_term) == 0)) index++;
 
-    rprintf("index: %d %d\n", index, vector_length(terms));
+    // ws demux
+    
+    rprintf("%t\n", v);
+    
     // root - serve up js app
     if (index == vector_length(terms)) {
-        // surely x-javascript isn't the correct mimetype anymore
-        send_http_response(bound(out),
-                           timm("Content-Type", "application/x-javascript"),
-                           management_js);
-
+        // xxx - the browser signatures differ slightly here
+        if (get(v, sym(Upgrade)) == symbol_string(sym("websocket"))) {
+            table props = allocate_tuple();
+            websocket_send_upgrade(h, props, out, out);
+        } else {
+            // surely x-javascript isn't the correct mimetype anymore
+            // xxx - this is consumed
+            management_js = alloca_wrap_buffer(&_binary_management_js_js_start,
+                                               (unsigned long)&_binary_management_js_js_size);
+            
+            send_http_response(out,
+                               timm("Content-Type", "application/x-javascript"),
+                               management_js);
+        }
     } else {
         // tree
         if (buffer_compare_with_cstring(vector_get(terms,index), "tree")) {
@@ -86,8 +99,6 @@ void init_management_http(heap h, tuple root) {
     string r = get(root, sym(management_http));
     u64 port;
 
-    management_js = wrap_buffer(h, &_binary_management_js_js_start,
-                                (unsigned long)&_binary_management_js_js_size);
     if (r && parse_int(r, 10, &port)) {
         // xxx - check to make sure there weren't high order bits set
         rprintf("management http %d\n", port);

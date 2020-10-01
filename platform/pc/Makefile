@@ -17,6 +17,7 @@ SRCS-kernel.img= \
 	$(SRCDIR)/http/management_http.c \
 	$(SRCDIR)/http/management_js.js \
 	$(SRCDIR)/http/websocket.c \
+	$(SRCDIR)/http/sha1.c \
 	$(SRCDIR)/http/base64.c \
 	$(SRCDIR)/kernel/backed_heap.c \
 	$(SRCDIR)/kernel/elf.c \
