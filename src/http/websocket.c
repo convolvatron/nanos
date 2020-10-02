@@ -49,7 +49,7 @@ void websocket_send(websocket w, int opcode, buffer b)
             buffer_write_byte(out, length);
         }
     }
-    apply(w->write, out); // reclaim
+    apply(w->write, out); 
     apply(w->write, b);
 }
 
@@ -59,13 +59,17 @@ closure_function(2, 1, void, send_keepalive,
                  buffer, b,
                  u64, overruns)
 {
-    websocket_send(bound(w), 0x9, bound(b));
+    // refcnt?
+    buffer b = clone_buffer(bound(w)->h, bound(b));
+    websocket_send(bound(w), 0x9, b);
 }
 
 closure_function(1, 1, status, websocket_output_frame,
                  websocket, w,
                  buffer, b)
 {
+    rprintf("ws output frame\n");
+    rprintf("ws output %d\n", buffer_length(b));    
     websocket_send(bound(w), 1, b);
     return STATUS_OK;
 }
@@ -153,6 +157,7 @@ void sha1(buffer d, buffer s);
 buffer_handler websocket_send_upgrade(heap h,
                                       table props,
                                       buffer_handler down,
+                                      buffer_handler *in,
                                       buffer_handler up)
 {
     websocket w = allocate(h, sizeof(struct websocket));
@@ -175,11 +180,10 @@ buffer_handler websocket_send_upgrade(heap h,
     buffer_concat(key, ekey);
     // xxx - didn't extend?
     buffer_append(key, fixed_uuid, sizeof(fixed_uuid)-1);
-    rprintf ("sha in %b\n", key);
+
     buffer sh = allocate_buffer(h, 20);
     sha1(sh, key);
     string r = base64_encode(h, sh);
-    rprintf("sha %X %b\n", sh, r);    
     buffer upgrade = allocate_buffer(h, 200);
 
     // could use tuple
@@ -190,12 +194,12 @@ buffer_handler websocket_send_upgrade(heap h,
     buffer_concat(upgrade, r);
     outline(upgrade, "");    
     outline(upgrade, "");
-    rprintf("pop %b\n", upgrade);
     
     register_timer(runloop_timers, CLOCK_ID_MONOTONIC, 0, true, seconds(5),
                    closure(w->h, send_keepalive, w, allocate_buffer(w->h, 0)));
     apply(w->write, upgrade);
     w->self = closure(h, websocket_input_frame, w);
+    *in = w->self;
     return(closure(h, websocket_output_frame, w));
 }
 

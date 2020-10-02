@@ -43,5 +43,6 @@ string base64_encode(heap h, buffer x);
 buffer_handler websocket_send_upgrade(heap h,
                                       table props,
                                       buffer_handler down,
+                                      buffer_handler *in,
                                       buffer_handler up);
 

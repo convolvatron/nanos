@@ -6,6 +6,10 @@ extern  char **_binary_management_js_js_start;
 extern  u64 _binary_management_js_js_size;
 static buffer management_js;
 
+typedef struct session {
+    buffer_handler out;
+} *session;
+    
 closure_function(1, 2, void, each,
                  buffer, b,
                  value, k,
@@ -30,33 +34,48 @@ buffer subkeys(heap h, value m)
     return b;
 }
 
+closure_function(1, 1, status, each_ws, session, s, buffer, b) {
+    rprintf("from websocket %b\n", b);
+    return STATUS_OK;
+}
+    
 // per request heap
-closure_function(3, 1, void, each_http_request,
+closure_function(4, 1, void, each_http_request,
                  heap, h,
+                 buffer_handler *, director_bh,
                  tuple, root,
                  buffer_handler, out,
                  value, v)
 {
     heap h = bound(h);
     buffer_handler out = bound(out);
+    rprintf ("url %t\n", v);    
     buffer url = get(get(v, sym(start_line)), sym(1));
+    rprintf ("url %b\n", url);    
     vector terms = split(h, url, '/');
     int index = 0;
     value where = bound(root);
+
 
     // leading slash
     buffer first_term = vector_get(terms, index);
     if (!first_term || (buffer_length(first_term) == 0)) index++;
     
-    // root - serve up js app
+
     if (index == vector_length(terms)) {
-        // xxx - the browser signatures differ slightly here
+        // start up websocket
         buffer up  = get(v, sym(Upgrade));
+        // xxx - the browser signatures differ slightly here
         if (up && !buffer_compare(up, symbol_string(sym("websocket")))) {
-            websocket_send_upgrade(h, v, out, out);
+            session s = allocate(h, sizeof(struct session));
+            buffer_handler in;
+            s->out = websocket_send_upgrade(h, v, out,
+                                            &in,
+                                            closure(h, each_ws, s)); 
+            *bound(director_bh) = in;
         } else {
+            // root - serve up js app
             // surely x-javascript isn't the correct mimetype anymore
-            // xxx - this is consumed
             management_js = alloca_wrap_buffer(&_binary_management_js_js_start,
                                                (unsigned long)&_binary_management_js_js_size);
             
@@ -82,13 +101,23 @@ closure_function(3, 1, void, each_http_request,
     }
 }
 
+
+closure_function(1, 1, status, director,
+                 buffer_handler *, bh,
+                 buffer, b)
+{
+    return apply(*bound(bh), b);
+}
+
 closure_function(2, 1, buffer_handler, each_http_connection,
                  heap, h,
                  tuple, root, 
                  buffer_handler, out)
 {
     heap h = bound(h);
-    return allocate_http_parser(h, closure(h, each_http_request, h, bound(root), out));
+    buffer_handler *bh = allocate(h, sizeof(buffer_handler *));
+    *bh = allocate_http_parser(h, closure(h, each_http_request, h, bh, bound(root), out));
+    return closure(h, director, bh);
 }
 
 void sha1(buffer, buffer);
@@ -96,13 +125,6 @@ void sha1(buffer, buffer);
 void init_management_http(heap h, tuple root) {
     string r = get(root, sym(management_http));
     u64 port;
-
-    // should be 84983e44 1c3bd26e baae4aa1 f95129e5 e54670f1
-    buffer b = allocate_buffer(h, 21);
-
-    sha1(b, symbol_string(sym(abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq)));
-    rprintf ("%X\n", b);
-        
         
     if (r && parse_int(r, 10, &port)) {
         // xxx - check to make sure there weren't high order bits set
@@ -114,7 +136,5 @@ void init_management_http(heap h, tuple root) {
         if (!is_ok(s))
             halt("listen_port failed for http listener: %v\n", s);
         rprintf("http management server started on port %d\n", port);
-    } else {
-        rprintf("no m\n");
     }
 }
