@@ -9,26 +9,30 @@ static buffer management_js;
 typedef struct session {
     buffer_handler out;
 } *session;
-    
+
 closure_function(1, 2, void, each,
                  buffer, b,
                  value, k,
                  value, v)
 {
     rprintf("keyo %b %b\n", k, v);
+    //serialize(b, 
+    //              timm(sym(text),
+    //                   timm(sym(body), b,
+    //                        sym(callback), aprintf(h, "poppy"))));
 }
-                 
-                 
-buffer subkeys(heap h, value m)
+
+
+// move to runtime
+buffer subkeys(heap h, value m, value_handler e)
 {
-    buffer b = allocate_buffer(h, 100);
     switch (tagof(m)) {
     case tag_tuple:
-        table_foreach(m, k, v) 
-            bprintf(b, "%v ", k);
+        table_foreach(m, k, _)
+            apply(e, k);
         break;
     case tag_function_tuple:
-        apply(((function_tuple)m)->i, closure(h, each, b));
+        apply(((function_tuple)m)->i, e);
         break;
     }
     return b;
@@ -84,7 +88,7 @@ closure_function(4, 1, void, each_http_request,
                                management_js);
         }
     } else {
-        // tree
+        // http method interface needs work 
         if (buffer_compare_with_cstring(vector_get(terms,index), "tree")) {
             index++;
             while (where && index < vector_length(terms)) {
