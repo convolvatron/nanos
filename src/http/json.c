@@ -2,13 +2,27 @@
 #include <http/http.h>
 
 typedef struct json_parser *json_parser;
-typedef void *(*parser)(json_parser, character);
-typedef parser (*completion)(json_parser);
+typedef void *(*jparser)(json_parser, character);
+typedef jparser (*completion)(json_parser);
 
 #define numeric(__p, __c, __start, __end, __offset, __base)\
     (((__c <= __end) && (__c >= __start))?                                \
-     (__p->number = __p->number * __base + (__c - __start + __offset), true):false)
+     (__p->n = __p->n * __base + (__c - __start + __offset), true):false)
 
+
+#define sstring(__x) ({ \
+     static int init = 0;\
+     /* must mark immutable?                    */\
+     static struct buffer b;\
+     if (!init) {\
+      b.start = 0;\
+      b.end = sizeof(__x) -1;\
+      b.contents = __x;\
+      b.length = b.end;\
+      init = 1;\
+     }        \
+     &b;\
+    })
 
 void escape_json(buffer out, string current)
 {
@@ -28,27 +42,26 @@ void escape_json(buffer out, string current)
     buffer_write_byte(out , '"');
 }
 
+typedef u64 number; // bear with
+
 struct json_parser {
     heap h;
     value v;
-    object_handler out;
-    bag b;
+    value_handler out;
 
-    parser p;
+    jparser p;
     buffer string_result;
+    number n;
     buffer check;
-    double float_result; // make this an integer world?
-    u64 number;
 
     // well, we replaced the comparatively expension continuation stack with
     // all these different stacks...they could be unified, but meh
     vector completions;
-    vector ids;
+    vector tuples; 
     vector indices;
     vector tags;
 
-    closure(error, char *);
-    reader self;
+    status_handler error;
 };
 
 static void *parse_value(json_parser p, character c);
@@ -77,7 +90,7 @@ static char escape_map[] = {
  static char *real_escape_map = 0;
 
 
-#define complete(__p)  ((completion)pop(__p->completions))(__p)
+#define complete(__p)  ((completion)vector_pop(__p->completions))(__p)
 #define error(__text) return ((void *)0);
 
 static void *parse_string(json_parser p, character c);
@@ -89,24 +102,31 @@ static void *parse_decimal_number(json_parser p, character c)
     return complete(p)(p, c);
 }
 
+typedef u64 number;
+
+value box_number(number n)
+{
+    return (void *)0;
+}
+
 //
 // float
 //
 static void *finish_float(json_parser p)
 {
-    p->v = box_float(p->float_result);
+    p->v = box_number(p->n);
     return complete(p);
 }
 
 static void *negate(json_parser p)
 {
-    p->v = box_float(-p->float_result);
+    p->v = box_number(-p->n);
     return complete(p);
 }
 
 static void *exponent_complete(json_parser p)
 {
-    p->float_result = p->float_result * pow(10.0, (double)(p->number));
+    //    p->float_result = p->float_result * pow(10.0, (double)(p->number));
     return complete(p);
 }
 
@@ -114,8 +134,8 @@ static void *exponent_complete(json_parser p)
 static void *check_exp(json_parser p, character c)
 {
     if ((c == 'e') || (c == 'E')) {
-        push(p->completions, exponent_complete);
-        p->number = 0;
+        vector_push(p->completions, exponent_complete);
+        p->n = 0;
         return parse_decimal_number;
     }
     return complete(p)(p, c);
@@ -124,8 +144,7 @@ static void *check_exp(json_parser p, character c)
 static void *parse_fractional(json_parser p, character c)
 {
     if ((c >= '0') && (c <= '9')) {
-        p->float_result += (c - '0') / (double) p->number;
-        p->number *= 10;
+        //   p->n *= 10 + (c - '0');
         return parse_fractional;
     }
     return check_exp(p, c);
@@ -134,9 +153,9 @@ static void *parse_fractional(json_parser p, character c)
 static void *start_parse_float(json_parser p, character c)
 {
     if (numeric(p, c, '0', '9', 0, 10)) return start_parse_float;
-    p->float_result = (double)p->number;
+    //    p->float_result = (double)p->n;
     if (c == '.') {
-        p->number = 10;
+        p->n = 10;
         return parse_fractional;
     }
     return check_exp(p, c);
@@ -156,14 +175,14 @@ static void *parse_hex_number(json_parser p,  character c)
 // some crap about 'surrogate pair' for unicode values greater than 16 bits
 static void *unicode_complete(buffer b, void *x)
 {
-    string_insert_rune(b, *(u64 *)x);
+    push_character(b, *(u64 *)x);
     return parse_string;
 }
 
 static void *parse_backslash(json_parser p, character c)
 {
     if (c == 'u') {
-        push(p->completions, unicode_complete);
+        vector_push(p->completions, unicode_complete);
         // xxx - really this is supposed to be exactly 4 digits
         return parse_hex_number;
     }
@@ -172,7 +191,7 @@ static void *parse_backslash(json_parser p, character c)
         if (!(trans = real_escape_map[c]))
             trans = c;
     }
-    string_insert_rune(p->string_result, trans);
+    push_character(p->string_result, trans);
     return parse_string;
 }
 
@@ -180,10 +199,10 @@ static void *parse_string(json_parser p, character c)
 {
     if (c == '\\') return parse_backslash;
     if (c == '"')  {
-        p->v = intern_buffer(p->string_result);
+        p->v = intern(p->string_result);
         return complete(p);
     }
-    string_insert_rune(p->string_result, c);
+    push_character(p->string_result, c);
     return parse_string;
 }
 
@@ -192,17 +211,17 @@ static void *parse_string(json_parser p, character c)
 //
 static void *complete_array(json_parser p)
 {
-    p->v = pop(p->ids);
-    pop(p->indices);
+    //    p->v = vector_pop(p->ids);
+    vector_pop(p->indices);
     return complete(p);
 }
 
-static parser value_complete_array(json_parser p);
+static jparser value_complete_array(json_parser p);
 static void *next_array(json_parser p, character c)
 {
     switch(c) {
     case ',':
-        push(p->completions, value_complete_array);
+        vector_push(p->completions, value_complete_array);
         return parse_value;
     case ']':
         return complete_array(p);
@@ -212,13 +231,13 @@ static void *next_array(json_parser p, character c)
     }
 }
 
-static parser value_complete_array(json_parser p)
+static jparser value_complete_array(json_parser p)
 {
-    u64 count = (u64)pop(p->indices);
+    u64 count = (u64)vector_pop(p->indices);
     // block?
-    apply(p->b->insert, peek(p->ids), box_float(count), p->v, 1, 0);
+    //    apply(p->b->insert, vector_peek(p->ids), box_float(count), p->v, 1, 0);
     count++;
-    push(p->indices, (void *)count);
+    vector_push(p->indices, (void *)count);
     return next_array;
 }
 
@@ -226,15 +245,15 @@ static parser value_complete_array(json_parser p)
 static void *first_array_element(json_parser p, character c)
 {
     if(c == ']') return complete_array(p);
-    push(p->completions, value_complete_array);
+    vector_push(p->completions, value_complete_array);
     return(parse_value(p, c));
 }
 
 static void *start_array(json_parser p)
 {
-    push(p->ids, generate_uuid());
-    apply(p->b->insert, peek(p->ids), sym(tag), sym(array), 1, 0);
-    push(p->indices, (void *)1);
+    //    vector_push(p->ids, generate_uuid());
+    //    apply(p->b->insert, vector_peek(p->ids), sym(tag), sym(array), 1, 0);
+    vector_push(p->indices, (void *)1);
     return first_array_element;
 }
 
@@ -246,7 +265,7 @@ static void *next_object(json_parser p, character c);
 static void *value_complete_object(json_parser p)
 {
     // block?
-    apply(p->b->insert, peek(p->ids), pop(p->tags), p->v, 1, 0);
+    //    apply(p->b->insert, vector_peek(p->ids), vector_pop(p->tags), p->v, 1, 0);
     return next_object;
 }
 
@@ -254,7 +273,7 @@ static void *check_sep(json_parser p, character c)
 {
     if (whitespace(c)) return check_sep;
     if (c == ':') {
-        push(p->completions, value_complete_object);
+        vector_push(p->completions, value_complete_object);
         return parse_value;
     }
     error("expected separator");
@@ -262,7 +281,7 @@ static void *check_sep(json_parser p, character c)
 
 static void *complete_tag(json_parser p)
 {
-    push(p->tags, intern_buffer(p->string_result));
+    vector_push(p->tags, intern(p->string_result));
     return check_sep;
 }
 
@@ -270,12 +289,12 @@ static void *parse_attribute(json_parser p, character c)
 {
     switch(c) {
     case '"':
-        push(p->completions, complete_tag);
+        vector_push(p->completions, complete_tag);
         buffer_clear(p->string_result);
         return parse_string;
     // xxx - this allows ",}"
     case '}':
-        p->v = pop(p->ids);
+        //        p->v = vector_pop(p->ids);
         return complete(p);
     default:
         if (whitespace(c)) return parse_attribute;
@@ -289,7 +308,7 @@ static void *next_object(json_parser p, character c)
     case ',':
         return parse_attribute;
     case '}':
-        p->v = pop(p->ids);
+        //        p->v = vector_pop(p->ids);
         return complete(p);
     default:
         if (whitespace(c)) return next_object;
@@ -299,7 +318,7 @@ static void *next_object(json_parser p, character c)
 
 static void *start_object(json_parser p)
 {
-    push(p->ids, generate_uuid());
+    //    vector_push(p->ids, generate_uuid());
     return parse_attribute;
 }
 
@@ -308,9 +327,9 @@ static void *start_object(json_parser p)
 //
 static void *parse_immediate(json_parser p, character c)
 {
-    if (c == *(unsigned char *)bref(p->check, p->number)) {
-        p->number++;
-        if (p->number == buffer_length(p->check))
+    if (c == *(unsigned char *)buffer_ref(p->check, p->n)) {
+        p->n++;
+        if (p->n == buffer_length(p->check))
             return complete(p);
         return parse_immediate;
     }
@@ -320,7 +339,7 @@ static void *parse_immediate(json_parser p, character c)
 static void *start_immediate(json_parser p, buffer b, value v)
 {
     p->check = b;
-    p->number = 1;
+    p->n = 1;
     p->v = v;
     return  parse_immediate;
 }
@@ -328,11 +347,10 @@ static void *start_immediate(json_parser p, buffer b, value v)
 static void *parse_value(json_parser p, character c)
 {
     if (((c >= '0') && (c <= '9')) || (c == '-')) {
-        p->float_result = 0.0;
-        p->number = 0;
-        push(p->completions, finish_float);
+        p->n = 0;
+        vector_push(p->completions, finish_float);
         if (c == '-') {
-            push(p->completions, negate);
+            vector_push(p->completions, negate);
             return start_parse_float;
         } else return start_parse_float(p, c);
     }
@@ -343,8 +361,8 @@ static void *parse_value(json_parser p, character c)
     case '"':
         buffer_clear(p->string_result);
         return parse_string;
-    case 'f': return start_immediate(p, sstring("false"), efalse);
-    case 't': return start_immediate(p, sstring("true"), etrue);
+    case 'f': return start_immediate(p, sstring("false"), (void *)false);
+    case 't': return start_immediate(p, sstring("true"), (void *)true);
     case 'n': return start_immediate(p, sstring("null"), 0);
     default:
         if (whitespace(c)) return parse_value;
@@ -353,11 +371,11 @@ static void *parse_value(json_parser p, character c)
 }
 
 static void *json_top(json_parser p, character c);
-static parser top_complete(json_parser p)
+static jparser top_complete(json_parser p)
 {
     // no flow control
-    apply(p->out, p->b, p->v);
-    push(p->completions, top_complete);
+    apply(p->out, p->v);
+    vector_push(p->completions, top_complete);
     return json_top;
 }
 
@@ -365,10 +383,8 @@ static void *json_top(json_parser p, character c)
 {
     switch(c) {
     case '{':
-        p->b = (bag)create_edb(p->h, 0);
         return start_object(p);
     case '[':
-        p->b = (bag)create_edb(p->h, 0);
         return start_array(p);
     default:
         if (whitespace(c)) return json_top;
@@ -376,34 +392,33 @@ static void *json_top(json_parser p, character c)
     }
 }
 
-closure_function(1, 2, void, json_input,
+closure_function(1, 1, status, json_input,
                  json_parser, p,
-                 buffer, b,
-                 register_read, r)
+                 buffer, b)
 {
+    json_parser p = bound(p);
     if (!b) {
-        if (vector_length(p->ids))
-            apply(p->error, "unterminated json");
-        apply(p->out, 0, 0);
-        return;
+        //        if (vector_length(p->ids))
+        //            apply(p->error, "unterminated json");
+        apply(bound(p)->out, 0);
+        return STATUS_OK;
     }
     while(1) {
         int len, blen = buffer_length(b);
         if (!blen) {
-            apply(r, p->self);
-            return;
+            return STATUS_OK;
         }
 
-        character c = utf8_decode(bref(b, 0), &len);
+        character c = utf8_decode(buffer_ref(b, 0), &len);
         if (len <= blen) {
             p->p = p->p(p, c);
-            if (!p->p) prf("error: %c\n", c);
+            if (!p->p) rprintf("error: %c\n", c);
             b->start += len;
-        } else prf("oh man, framing boundary split a utf8, what am i ever going to do? %d %d\n", len, blen);
+        } else rprintf("oh man, framing boundary split a utf8, what am i ever going to do? %d %d\n", len, blen);
     }
 }
 
-object_handler parse_json(heap h, endpoint e, object_handler j)
+buffer_handler parse_json(heap h, value_handler j)
 {
     if (!real_escape_map) {
         real_escape_map = real_escape_map_storage;
@@ -413,15 +428,12 @@ object_handler parse_json(heap h, endpoint e, object_handler j)
     json_parser p= allocate(h, sizeof(struct json_parser));
     p->h = h;
     p->completions = allocate_vector(p->h, 10);
-    p->ids = allocate_vector(p->h, 10);
+    //    p->ids = allocate_vector(p->h, 10);
     p->indices = allocate_vector(p->h, 10);
     p->tags = allocate_vector(p->h, 10);
     p->out = j;
     p->string_result = allocate_buffer(p->h, 20);
-    push(p->completions, top_complete);
+    vector_push(p->completions, top_complete);
     p->p = json_top;
-    p->self = cont(p->h, json_input, p);
-    apply(e->r, p->self);
-    // for symmetric json
-    return 0;
+    return closure(p->h, json_input, p);
 }

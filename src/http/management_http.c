@@ -10,32 +10,28 @@ typedef struct session {
     buffer_handler out;
 } *session;
 
+#if 0
 closure_function(1, 2, void, each,
                  buffer, b,
                  value, k,
                  value, v)
 {
     rprintf("keyo %b %b\n", k, v);
-    //serialize(b, 
-    //              timm(sym(text),
-    //                   timm(sym(body), b,
-    //                        sym(callback), aprintf(h, "poppy"))));
 }
-
+#endif
 
 // move to runtime
-buffer subkeys(heap h, value m, value_handler e)
+void subkeys(heap h, value m, binding_handler e)
 {
     switch (tagof(m)) {
     case tag_tuple:
-        table_foreach(m, k, _)
-            apply(e, k);
+        table_foreach(m, k, v)
+            apply(e, k, v);
         break;
     case tag_function_tuple:
         apply(((function_tuple)m)->i, e);
         break;
     }
-    return b;
 }
 
 closure_function(1, 1, status, each_ws, session, s, buffer, b) {
@@ -98,7 +94,7 @@ closure_function(4, 1, void, each_http_request,
             // return 404
             buffer b = where;
             if (tagof(where) != tag_string) {
-                b = subkeys(h, where);
+                //                b = subkeys(where);
             }
             send_http_response(bound(out), timm("Content-Type", "text/html"), b);
         }

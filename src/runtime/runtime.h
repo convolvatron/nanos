@@ -153,7 +153,8 @@ typedef void *value;
 #define tag_tuple (2ull)
 #define tag_string (3ull)
 #define tag_function_tuple (4ull)
-#define tag_max (5ull)
+#define tag_number (5ull)    // buffer as number?
+#define tag_max (6ull)
 
 #include <symbol.h>
 
@@ -190,6 +191,7 @@ typedef closure_type(block_io, void, void *, range, status_handler);
 #include <sg.h>
 
 // should be  (parser, parser, character)
+// shouldn't be in the global runtime namespace?
 typedef closure_type(parser, void *, character);
 // change to status_handler
 typedef closure_type(parse_error, void, buffer);
