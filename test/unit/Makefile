@@ -2,6 +2,7 @@ PROGRAMS= \
 	buffer_test \
 	closure_test \
 	id_heap_test \
+	json_test \
 	memops_test \
 	network_test \
 	management_test \
@@ -106,6 +107,12 @@ SRCS-tuple_test= \
 	$(CURDIR)/tuple_test.c \
 	$(RUNTIME)\
 	$(SRCDIR)/unix_process/unix_process_runtime.c
+
+SRCS-json_test=\
+	$(CURDIR)/json_test.c \
+	$(SRCDIR)/http/json.c \
+	$(SRCDIR)/unix_process/unix_process_runtime.c\
+	$(RUNTIME)
 
 SRCS-udp_test= \
 	$(CURDIR)/udp_test.c \

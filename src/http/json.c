@@ -437,3 +437,8 @@ buffer_handler parse_json(heap h, value_handler j)
     p->p = json_top;
     return closure(p->h, json_input, p);
 }
+
+buffer format_json(heap h, value v)
+{
+    return 0;
+}

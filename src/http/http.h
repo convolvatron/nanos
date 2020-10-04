@@ -46,3 +46,6 @@ buffer_handler websocket_send_upgrade(heap h,
                                       buffer_handler *in,
                                       buffer_handler up);
 
+buffer_handler parse_json(heap h, value_handler j);
+
+buffer format_json(heap h, value v);
