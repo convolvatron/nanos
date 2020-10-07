@@ -13,7 +13,7 @@ boolean value_equal(value a, value b)
     case tag_tuple:
         if (table_elements(a) != table_elements(b)) return false;
         table_foreach((table)a, k, v) 
-            if (table_find((table)b, k) != v) return false;
+            if (!value_equal(table_find((table)b, k), v)) return false;
         break;
     case tag_string:
         {
