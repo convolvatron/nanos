@@ -48,4 +48,4 @@ buffer_handler websocket_send_upgrade(heap h,
 
 buffer_handler parse_json(heap h, value_handler j);
 
-buffer format_json(heap h, value v);
+void format_json(buffer b, value v);

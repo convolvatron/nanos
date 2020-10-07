@@ -210,6 +210,8 @@ typedef struct signature {
 } *signature;
 
 void init_runtime(heap h);
+void init_strings(heap h);
+string allocate_string();
 
 extern thunk ignore;
 extern status_handler ignore_status;

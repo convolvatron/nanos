@@ -1,8 +1,9 @@
 #include <runtime.h>
 #include <http.h>
 
-
-char *j1 = "{\"foo\":\"bar\", \"zed\":{\"kor\":{\"lop\":\"heg\", \"kez\":\"tir\"}}}";
+char *j1[] = {"{\"foo\":\"bar\"}",
+              "{\"foo\":\"bar\", \"zed\":{\"kor\":{\"lop\":\"heg\", \"kez\":\"tir\"}}}"
+};
 
 // move to runtime
 boolean value_equal(value a, value b)
@@ -35,13 +36,20 @@ closure_function(1, 1, void, check2, value, t1, value, t2)
 closure_function(1, 1, void, check1, heap, h, value, v)
 {
     heap h = bound(h);
-    apply(parse_json(h, closure(h, check2, v)), format_json(h, v));
+    buffer b = aprintf(h, "%t\n", v);
+    buffer_write_byte(b, 0);
+    console(buffer_ref(b, 0));
+    buffer out = allocate_buffer(h, 1024);
+    format_json(out, v);
+    rprintf("fj: %b\n", out);
+    apply(parse_json(h, closure(h, check2, v)), out);
 }
 
 
 int main()
 {
     heap h = init_process_runtime();
-    apply(parse_json(h, closure(h, check1, h)), aprintf(h, "%s", j1)) ;
+    for (int i = 0 ;i < sizeof(j1)/sizeof(char *); i++) 
+        apply(parse_json(h, closure(h, check1, h)), aprintf(h, "%s", j1[i])) ;
     return 0;
 }

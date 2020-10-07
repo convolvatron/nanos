@@ -45,7 +45,7 @@ else
 ifeq ($(UNAME_s),Darwin)
 CC=		cc
 else
-CC=		gcc
+CC=		cc
 endif
 endif
 
@@ -65,7 +65,7 @@ GCOV=		gcov
 LCOV=		lcov
 GENHTML=	genhtml
 
-CFLAGS+=	-std=gnu11 -O3 -g
+CFLAGS+=	-std=gnu11 -g
 CFLAGS+=	-Wall -Werror -Wno-char-subscripts
 CFLAGS+=	-I$(OBJDIR)
 

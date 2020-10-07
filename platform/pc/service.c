@@ -390,6 +390,7 @@ static void __attribute__((noinline)) init_service_new_stack()
     init_runtime(misc);
     init_tuples(allocate_tagged_region(kh, tag_tuple));
     init_symbols(allocate_tagged_region(kh, tag_symbol), misc);
+    init_strings(allocate_tagged_region(kh, tag_string), misc);    
     init_management(allocate_tagged_region(kh, tag_function_tuple));    
     init_sg(misc);
     init_pagecache(misc, misc, (heap)heap_physical(kh), PAGESIZE);

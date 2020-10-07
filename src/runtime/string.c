@@ -54,3 +54,15 @@ runtime_strcmp (const char *string1, const char *string2)
 
     return *(const unsigned char *)string1 - *(const unsigned char *)string2;
 }
+
+static heap sheap;
+
+string allocate_string()
+{
+    return allocate_buffer(sheap, 50);
+}
+
+void init_strings(heap h)
+{
+    sheap = h;
+}

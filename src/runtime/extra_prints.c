@@ -63,6 +63,7 @@ void print_tuple(buffer b, tuple z)
             push_character(b, ' ');
         }
         bprintf(b, "%b:", symbol_string((symbol)n));
+        rprintf("print tuple %p\n", v);
         // xxx print value
         if (tagof(v) == tag_tuple) {
             print_tuple(b, v);
@@ -75,6 +76,7 @@ void print_tuple(buffer b, tuple z)
 }
 
 // copied from print_tuple()
+// xxx -- why?
 static void _print_root(buffer b, tuple z, int indent, boolean is_children)
 {
     table t = valueof(z);

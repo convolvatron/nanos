@@ -46,7 +46,6 @@ typedef u64 number; // bear with
 
 struct json_parser {
     heap h;
-    value v;
     value_handler out;
 
     jparser p;
@@ -57,7 +56,6 @@ struct json_parser {
     // well, we replaced the comparatively expension continuation stack with
     // all these different stacks...they could be unified, but meh
     vector completions;
-    vector tuples; 
     vector indices;
     vector tags;
 
@@ -114,13 +112,13 @@ value box_number(number n)
 //
 static void *finish_float(json_parser p)
 {
-    p->v = box_number(p->n);
+    vector_push(p->tags, box_number(p->n));
     return complete(p);
 }
 
 static void *negate(json_parser p)
 {
-    p->v = box_number(-p->n);
+    vector_push(p->tags, box_number(-p->n));
     return complete(p);
 }
 
@@ -199,7 +197,11 @@ static void *parse_string(json_parser p, character c)
 {
     if (c == '\\') return parse_backslash;
     if (c == '"')  {
-        p->v = intern(p->string_result);
+        rprintf("push string %d %b\n", vector_length(p->tags), p->string_result);
+        // some of these should be symbols?
+        string s = allocate_string();
+        push_buffer(s, p->string_result);
+        vector_push(p->tags, s);
         return complete(p);
     }
     push_character(p->string_result, c);
@@ -211,7 +213,7 @@ static void *parse_string(json_parser p, character c)
 //
 static void *complete_array(json_parser p)
 {
-    //    p->v = vector_pop(p->ids);
+    // single stack
     vector_pop(p->indices);
     return complete(p);
 }
@@ -234,8 +236,8 @@ static void *next_array(json_parser p, character c)
 static jparser value_complete_array(json_parser p)
 {
     u64 count = (u64)vector_pop(p->indices);
-    // block?
-    //    apply(p->b->insert, vector_peek(p->ids), box_float(count), p->v, 1, 0);
+    value v = vector_pop(p->tags);    
+    table_set(vector_peek(p->tags), box_number(count), v);
     count++;
     vector_push(p->indices, (void *)count);
     return next_array;
@@ -251,9 +253,8 @@ static void *first_array_element(json_parser p, character c)
 
 static void *start_array(json_parser p)
 {
-    //    vector_push(p->ids, generate_uuid());
-    //    apply(p->b->insert, vector_peek(p->ids), sym(tag), sym(array), 1, 0);
-    vector_push(p->indices, (void *)1);
+    vector_push(p->tags, allocate_tuple());
+    vector_push(p->indices, (void *)0);
     return first_array_element;
 }
 
@@ -264,8 +265,12 @@ static void *next_object(json_parser p, character c);
 
 static void *value_complete_object(json_parser p)
 {
-    // block?
-    //    apply(p->b->insert, vector_peek(p->ids), vector_pop(p->tags), p->v, 1, 0);
+
+    value v = vector_pop(p->tags);
+    value k = vector_pop(p->tags);
+    rprintf("%v %v\n", k, v);
+    table_set(vector_peek(p->tags), intern(k), v);
+    rprintf("value: %t\n", vector_peek(p->tags));
     return next_object;
 }
 
@@ -281,7 +286,6 @@ static void *check_sep(json_parser p, character c)
 
 static void *complete_tag(json_parser p)
 {
-    vector_push(p->tags, intern(p->string_result));
     return check_sep;
 }
 
@@ -294,7 +298,6 @@ static void *parse_attribute(json_parser p, character c)
         return parse_string;
     // xxx - this allows ",}"
     case '}':
-        //        p->v = vector_pop(p->ids);
         return complete(p);
     default:
         if (whitespace(c)) return parse_attribute;
@@ -308,7 +311,6 @@ static void *next_object(json_parser p, character c)
     case ',':
         return parse_attribute;
     case '}':
-        //        p->v = vector_pop(p->ids);
         return complete(p);
     default:
         if (whitespace(c)) return next_object;
@@ -318,7 +320,7 @@ static void *next_object(json_parser p, character c)
 
 static void *start_object(json_parser p)
 {
-    //    vector_push(p->ids, generate_uuid());
+    vector_push(p->tags, allocate_tuple());
     return parse_attribute;
 }
 
@@ -340,12 +342,14 @@ static void *start_immediate(json_parser p, buffer b, value v)
 {
     p->check = b;
     p->n = 1;
-    p->v = v;
+    vector_push(p->tags, v); // ? 
     return  parse_immediate;
 }
 
 static void *parse_value(json_parser p, character c)
 {
+    rprintf ("parse value: %d %c\n", vector_length(p->tags), c);
+    
     if (((c >= '0') && (c <= '9')) || (c == '-')) {
         p->n = 0;
         vector_push(p->completions, finish_float);
@@ -374,13 +378,14 @@ static void *json_top(json_parser p, character c);
 static jparser top_complete(json_parser p)
 {
     // no flow control
-    apply(p->out, p->v);
+    apply(p->out, vector_pop(p->tags));
     vector_push(p->completions, top_complete);
     return json_top;
 }
 
 static void *json_top(json_parser p, character c)
 {
+    rprintf("json top: %c\n", c);
     switch(c) {
     case '{':
         return start_object(p);
@@ -398,8 +403,8 @@ closure_function(1, 1, status, json_input,
 {
     json_parser p = bound(p);
     if (!b) {
-        //        if (vector_length(p->ids))
-        //            apply(p->error, "unterminated json");
+        if (vector_length(p->tags))
+            apply(p->error, timm("error", aprintf(p->h, "unterminated json")));
         apply(bound(p)->out, 0);
         return STATUS_OK;
     }
@@ -428,7 +433,6 @@ buffer_handler parse_json(heap h, value_handler j)
     json_parser p= allocate(h, sizeof(struct json_parser));
     p->h = h;
     p->completions = allocate_vector(p->h, 10);
-    //    p->ids = allocate_vector(p->h, 10);
     p->indices = allocate_vector(p->h, 10);
     p->tags = allocate_vector(p->h, 10);
     p->out = j;
@@ -438,7 +442,35 @@ buffer_handler parse_json(heap h, value_handler j)
     return closure(p->h, json_input, p);
 }
 
-buffer format_json(heap h, value v)
+void format_json(buffer b, value v)
 {
-    return 0;
+    // not going to attempt to reconstruct arrays today
+    switch (tagof(v)) {
+    case tag_tuple:
+        {
+            boolean first = true;
+            bprintf(b, "{");
+            table_foreach((table)v, k, v2) {
+                if (!first) {
+                    bprintf(b, ",");
+                }
+                first = false;
+                format_json(b, k);
+                bprintf(b,": ");
+                rprintf("%v %d\n", v2, tagof(v2));
+                format_json(b, v2);                
+            }
+            bprintf(b, "}");
+        }
+        break;
+        
+    case tag_symbol:
+        bprintf(b, "\"%b\"", symbol_string(v));
+        break;        
+    case tag_string:
+        bprintf(b, "\"%b\"", v);        
+        break;
+    default:
+       halt ("bad json value");
+    }
 }
