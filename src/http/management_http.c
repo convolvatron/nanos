@@ -35,7 +35,11 @@ void subkeys(heap h, value m, binding_handler e)
 }
 
 closure_function(1, 1, status, each_ws, session, s, buffer, b) {
-    rprintf("from websocket %b\n", b);
+    if (b) {
+        rprintf("from websocket %b\n", b);
+    } else {
+        rprintf("websocket closed\n");
+    }
     return STATUS_OK;
 }
     
@@ -49,7 +53,6 @@ closure_function(4, 1, void, each_http_request,
 {
     heap h = bound(h);
     buffer_handler out = bound(out);
-    rprintf ("url %t\n", v);    
     buffer url = get(get(v, sym(start_line)), sym(1));
     rprintf ("url %b\n", url);    
     vector terms = split(h, url, '/');
