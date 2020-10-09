@@ -112,14 +112,14 @@ function websocket(url) {
     setTimeout(function() {
 	socket = new WebSocket(url)
     socket.onopen = function(evt){
-          clear()
-          getUpstream("")
-        }
-	socket.onmessage = function(event){
-          var msg = JSON.parse(event.data);
+        clear()
+        getUpstream("")
+    }
+    socket.onmessage = function(event){
+            var msg = JSON.parse(event.data);
           set(svg, msg)
         }
-	socket.onclose = 
+    socket.onclose = 
             function(evt){
 		svg.setAttributeNS(null, "fill", "grey") 
 		connWait = connWait * 2 + 1000

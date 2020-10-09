@@ -63,7 +63,6 @@ void print_tuple(buffer b, tuple z)
             push_character(b, ' ');
         }
         bprintf(b, "%b:", symbol_string((symbol)n));
-        rprintf("print tuple %p\n", v);
         // xxx print value
         if (tagof(v) == tag_tuple) {
             print_tuple(b, v);

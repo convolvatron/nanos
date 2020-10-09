@@ -457,7 +457,6 @@ void format_json(buffer b, value v)
                 first = false;
                 format_json(b, k);
                 bprintf(b,": ");
-                rprintf("%v %d\n", v2, tagof(v2));
                 format_json(b, v2);                
             }
             bprintf(b, "}");
@@ -471,6 +470,6 @@ void format_json(buffer b, value v)
         bprintf(b, "\"%b\"", v);        
         break;
     default:
-       halt ("bad json value");
+        halt ("bad json value %d", tagof(v));
     }
 }

@@ -42,7 +42,21 @@ closure_function(1, 1, status, each_ws, session, s, buffer, b) {
     }
     return STATUS_OK;
 }
-    
+
+void init_ws_client(buffer_handler out)
+{
+    buffer b = allocate_buffer(transient, 100);
+    tuple a = timm("kind", "rect",
+                   "x", "10", "y", "10",
+                   "width", "20", "height", "30",
+                   "fill", "blue");
+    tuple c = timm("a", a);
+    format_json(b, timm("children",c));
+    rprintf ("bee; %b\n", b);
+    apply(out, b);
+}
+
+
 // per request heap
 closure_function(4, 1, void, each_http_request,
                  heap, h,
@@ -74,7 +88,8 @@ closure_function(4, 1, void, each_http_request,
             buffer_handler in;
             s->out = websocket_send_upgrade(h, v, out,
                                             &in,
-                                            closure(h, each_ws, s)); 
+                                            closure(h, each_ws, s));
+            init_ws_client(s->out);
             *bound(director_bh) = in;
         } else {
             // root - serve up js app

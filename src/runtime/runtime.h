@@ -163,6 +163,8 @@ typedef void *value;
 #include <closure_templates.h>
 typedef closure_type(thunk, void);
 
+string allocate_string();
+
 /* data structures */
 #include <list.h>
 #include <bitmap.h>
@@ -211,7 +213,6 @@ typedef struct signature {
 
 void init_runtime(heap h);
 void init_strings(heap h);
-string allocate_string();
 
 extern thunk ignore;
 extern status_handler ignore_status;
