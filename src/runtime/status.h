@@ -11,7 +11,8 @@ static inline void timm_term(table t, char *n, vlist *a)
     symbol k = intern(alloca_wrap_buffer(n, runtime_strlen(n)));
     char *f = varg(*a, char *);
     value b = f;
-    if (tagof(f) != tag_tuple) {
+    // assume C string
+    if ((tagof(f) != tag_string) && (tagof(f) != tag_tuple) && (tagof(f) != tag_symbol)) {
         b = allocate_string();
         buffer_write(b, f, runtime_strlen(f));
     }

@@ -7,6 +7,7 @@ extern  u64 _binary_management_js_js_size;
 static buffer management_js;
 
 typedef struct session {
+    tuple root;
     buffer_handler out;
 } *session;
 
@@ -21,7 +22,7 @@ closure_function(1, 2, void, each,
 #endif
 
 // move to runtime
-void subkeys(heap h, value m, binding_handler e)
+void subkeys(value m, binding_handler e)
 {
     switch (tagof(m)) {
     case tag_tuple:
@@ -34,9 +35,43 @@ void subkeys(heap h, value m, binding_handler e)
     }
 }
 
+closure_function(2, 2, void, add_node,
+                 tuple, dest,
+                 u64 *, offset,
+                 value, name,
+                 value, _)
+{
+    u64 *offset = bound(offset);
+    string y = allocate_string();
+    bprintf(y, "%d", *offset*15 + 10);
+    tuple z = timm("kind", "text",
+                   "x", "10", "y", y,
+                   "click", name, // really a path
+                   "text", name);
+
+    buffer n = little_stack_buffer(20);
+    buffer_write_byte(n, *offset + 'a');
+    table_set(bound(dest), intern(n), z);
+    // layout?
+    *offset = *offset +1;
+}
+
+
+
 closure_function(1, 1, status, each_ws, session, s, buffer, b) {
+    session s = bound(s);
     if (b) {
         rprintf("from websocket %b\n", b);
+        tuple dest = allocate_tuple();
+        tuple children = allocate_tuple();
+        table_set(dest, sym(children), children);
+        u64 *offset = allocate(transient, sizeof(u64));
+        *offset = 0;
+        subkeys(s->root, closure(transient, add_node, children, offset));
+        buffer out = allocate_buffer(transient, 100);
+        format_json(out, dest);
+        rprintf ("out %b", out);
+        apply(s->out, out);
     } else {
         rprintf("websocket closed\n");
     }
@@ -49,8 +84,14 @@ void init_ws_client(buffer_handler out)
     tuple a = timm("kind", "rect",
                    "x", "10", "y", "10",
                    "width", "20", "height", "30",
-                   "fill", "blue");
-    tuple c = timm("a", a);
+                   "fill", "blue",
+                   "click", "a:b:c:e");
+
+    tuple z = timm("kind", "text",
+                   "x", "10", "y", "10",
+                   "text", "figgy");
+        
+    tuple c = timm("a", a, "b", z);
     format_json(b, timm("children",c));
     rprintf ("bee; %b\n", b);
     apply(out, b);
@@ -68,7 +109,6 @@ closure_function(4, 1, void, each_http_request,
     heap h = bound(h);
     buffer_handler out = bound(out);
     buffer url = get(get(v, sym(start_line)), sym(1));
-    rprintf ("url %b\n", url);    
     vector terms = split(h, url, '/');
     int index = 0;
     value where = bound(root);
@@ -86,6 +126,7 @@ closure_function(4, 1, void, each_http_request,
         if (up && !buffer_compare(up, symbol_string(sym("websocket")))) {
             session s = allocate(h, sizeof(struct session));
             buffer_handler in;
+            s->root = bound(root);
             s->out = websocket_send_upgrade(h, v, out,
                                             &in,
                                             closure(h, each_ws, s));
@@ -146,7 +187,6 @@ void init_management_http(heap h, tuple root) {
         
     if (r && parse_int(r, 10, &port)) {
         // xxx - check to make sure there weren't high order bits set
-        rprintf("management http %d\n", port);
         http_listener hl = allocate_http_listener(h, port);
         assert(hl != INVALID_ADDRESS);
         

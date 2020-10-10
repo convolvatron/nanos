@@ -197,7 +197,6 @@ static void *parse_string(json_parser p, character c)
 {
     if (c == '\\') return parse_backslash;
     if (c == '"')  {
-        rprintf("push string %d %b\n", vector_length(p->tags), p->string_result);
         // some of these should be symbols?
         string s = allocate_string();
         push_buffer(s, p->string_result);
@@ -268,9 +267,7 @@ static void *value_complete_object(json_parser p)
 
     value v = vector_pop(p->tags);
     value k = vector_pop(p->tags);
-    rprintf("%v %v\n", k, v);
     table_set(vector_peek(p->tags), intern(k), v);
-    rprintf("value: %t\n", vector_peek(p->tags));
     return next_object;
 }
 
@@ -348,8 +345,6 @@ static void *start_immediate(json_parser p, buffer b, value v)
 
 static void *parse_value(json_parser p, character c)
 {
-    rprintf ("parse value: %d %c\n", vector_length(p->tags), c);
-    
     if (((c >= '0') && (c <= '9')) || (c == '-')) {
         p->n = 0;
         vector_push(p->completions, finish_float);
@@ -385,7 +380,6 @@ static jparser top_complete(json_parser p)
 
 static void *json_top(json_parser p, character c)
 {
-    rprintf("json top: %c\n", c);
     switch(c) {
     case '{':
         return start_object(p);

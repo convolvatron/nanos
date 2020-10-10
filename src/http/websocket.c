@@ -68,8 +68,6 @@ closure_function(1, 1, status, websocket_output_frame,
                  websocket, w,
                  buffer, b)
 {
-    rprintf("ws output frame\n");
-    rprintf("ws output %d\n", buffer_length(b));    
     websocket_send(bound(w), 1, b);
     return STATUS_OK;
 }
