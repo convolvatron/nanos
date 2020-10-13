@@ -67,6 +67,7 @@ void print_tuple(buffer b, tuple z)
         if (tagof(v) == tag_tuple) {
             print_tuple(b, v);
         } else {
+            rprintf("%b %k\n", v, v);
             bprintf(b, "%b", v);
         }
         sub = true;
@@ -173,6 +174,28 @@ static void format_closure(buffer dest, struct formatter_state *s, vlist *a)
     bprintf(dest, "%s", &c->name);
 }
 
+static char *tag_names[] =
+    {"unknown",
+     "symbol",
+     "tuple",
+     "string",
+     "function_tuple",
+     "number",
+    };
+
+static void format_kind(buffer dest, struct formatter_state *s, vlist *a)
+{
+    value v = varg(*a, value);
+    int tag = tagof(v);
+    char *tag_name;
+    if (tag < tag_max) {
+        tag_name = tag_names[tag];
+    } else {
+        tag_name = "invalid";
+    }
+    bprintf(dest, "%s", tag_name);
+}
+
 void init_extra_prints()
 {
     register_format('t', format_tuple, 0);
@@ -182,4 +205,5 @@ void init_extra_prints()
     register_format('R', format_range, 0);
     register_format('C', format_csum_buffer, 0);
     register_format('F', format_closure, 0);
+    register_format('k', format_kind, 0);    // realy type/tag but 't' is pretty booked
 }

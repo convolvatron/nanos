@@ -8,6 +8,10 @@ var socket = false
 var connWait = 0
 var svgns = "http://www.w3.org/2000/svg"
 
+function boundingbox(obj) {
+    return obj.getBBox()
+}
+
 
 function softNode(parent, name, tree) {
    // look up in dom..this is n^2...there is some kind of query something something
@@ -23,30 +27,15 @@ function softNode(parent, name, tree) {
    return obj
 }
 
-
-// not...really happy about this...but value is structureless, so lets just 
-// go with it for a moment
-function pathToTree(path){
-   terms = path.split(":")
-   var here = {}
-   res = here
-   var len =  terms.length
-   for (i =0 ; i < len-1; i++) {
-      // there is a prettier version of this, i'm just trying not to work it out
-      if (i == (len -2))  {
-         here[terms[len-2]] = terms[len-1]
-      }  else {
-         n = {}
-         here[terms[i]] = n
-         here = n
-      }
-   }
-   return res
-}
-
-// consider a shadow tree
+// consider a shadow tree - I guess I'm just worried about namespace issues?
 function set(dom, tree) {
     var obj = dom
+
+    if (tree == null) {
+        obj.remove()
+        return
+    }
+    
     if ("children" in tree) {
         for (i in tree.children) {
            v = tree.children[i]
@@ -66,7 +55,7 @@ function set(dom, tree) {
             if (!("click" in obj)) {
                    rebind_k = function(x) {
                       x.addEventListener("click",
-                                        function (evt) {putBatch(pathToTree(x.click))})
+                                        function (evt) {putBatch(x.click)})
                    }
                    rebind_k(obj)
             } 
@@ -75,7 +64,6 @@ function set(dom, tree) {
 	case 'text':
 	    var textNode = document.createTextNode(tree.text)
 	    obj.appendChild(textNode);
-            obj.width = obj.getComputedTextLength() // was used for layout
 	    break;
 	default: 
 	    obj.setAttributeNS(null,key,k)

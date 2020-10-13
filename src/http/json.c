@@ -459,11 +459,14 @@ void format_json(buffer b, value v)
         
     case tag_symbol:
         bprintf(b, "\"%b\"", symbol_string(v));
-        break;        
+        break;
+        
     case tag_string:
         bprintf(b, "\"%b\"", v);        
         break;
+        
     default:
+        rprintf("zaggo %b\n", v);
         halt ("bad json value %d", tagof(v));
     }
 }

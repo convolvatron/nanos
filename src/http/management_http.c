@@ -11,16 +11,6 @@ typedef struct session {
     buffer_handler out;
 } *session;
 
-#if 0
-closure_function(1, 2, void, each,
-                 buffer, b,
-                 value, k,
-                 value, v)
-{
-    rprintf("keyo %b %b\n", k, v);
-}
-#endif
-
 // move to runtime
 void subkeys(value m, binding_handler e)
 {
@@ -35,7 +25,24 @@ void subkeys(value m, binding_handler e)
     }
 }
 
-closure_function(2, 2, void, add_node,
+// still a little uncomfortable with (a (b (c ...))) as a path abstraction,
+// but it merges well (?). so anyways, as a result this appends an element
+// to all the contained trees
+
+// copying - really consider interning them all
+tuple path_append(tuple n, value e) {
+    if (!table_elements(n)) {
+        return e;
+    } 
+    tuple t = allocate_tuple();
+    table_foreach(n, k, v) 
+        table_set(t, k, path_append(v, e));
+    return t;        
+}
+
+closure_function(3, 2, void, add_node,
+                 tuple, path, // we're going with nested tuple paths today
+                              // instead of vector or path string
                  tuple, dest,
                  u64 *, offset,
                  value, name,
@@ -44,59 +51,79 @@ closure_function(2, 2, void, add_node,
     u64 *offset = bound(offset);
     string y = allocate_string();
     bprintf(y, "%d", *offset*15 + 10);
+    rprintf("z %p %d %v\n", name, tagof(name), y);
+    
+    //for the moment, we cant trust tree producers to use buffers with
+    // the string tag. and symbols come in here? make this stuff work in
+    // general
+    string ns = allocate_string();
+    bprintf(ns, "%v", name);
+
+    // is this proper deletion?
+    // should we use unique names since there is a race on deleting the
+    // old one and instantiating the new one?
+    // we should style directories and leaves differently
+    // tuple_union(delete, newpanel)
+    
+    tuple action = timm("ui",timm("panel",allocate_tuple()),
+                        "generate", path_append(bound(path), ns));
+    buffer a = aprintf(transient, "z %v\n", action);
+    buffer_write_byte(a, 0);
+    console(a->contents);
+    
     tuple z = timm("kind", "text",
-                   "x", "10", "y", y,
-                   "click", name, // really a path
-                   "text", name);
+                   "x", "10", "y", y, "text", ns, "click", action);
 
     buffer n = little_stack_buffer(20);
     buffer_write_byte(n, *offset + 'a');
     table_set(bound(dest), intern(n), z);
+    
     // layout?
     *offset = *offset +1;
 }
 
+// there is a vector_resolve path in tfs
+tuple tuple_resolve_path(tuple where, tuple path)
+{
+    if (!table_elements(path)) 
+        return where;
 
+    table_foreach(path, k, v) {
+        tuple x = table_find(where, k);
+        if (!x) return x;
+        return resolve_path(x, v);
+    }
+    return 0;
+}
+
+tuple generate_panel(table root, tuple path)
+{
+    // pacc anyone?
+    tuple panel_children = allocate_tuple();        
+    tuple panel = timm("kind", "g", "children", panel_children);
+    tuple children = timm("panel", panel);
+    tuple dest = timm("children", children);
+    
+    u64 *offset = allocate(transient, sizeof(u64));
+    *offset = 0;
+    subkeys(tuple_resolve_path(root, path),
+            closure(transient, add_node, path, panel_children, offset));
+    rprintf("%t\n", dest);
+    return dest;
+}
 
 closure_function(1, 1, status, each_ws, session, s, buffer, b) {
     session s = bound(s);
     if (b) {
         rprintf("from websocket %b\n", b);
-        tuple dest = allocate_tuple();
-        tuple children = allocate_tuple();
-        table_set(dest, sym(children), children);
-        u64 *offset = allocate(transient, sizeof(u64));
-        *offset = 0;
-        subkeys(s->root, closure(transient, add_node, children, offset));
         buffer out = allocate_buffer(transient, 100);
-        format_json(out, dest);
-        rprintf ("out %b", out);
+        format_json(out, generate_panel(bound(s)->root, allocate_tuple()));
         apply(s->out, out);
     } else {
         rprintf("websocket closed\n");
     }
     return STATUS_OK;
 }
-
-void init_ws_client(buffer_handler out)
-{
-    buffer b = allocate_buffer(transient, 100);
-    tuple a = timm("kind", "rect",
-                   "x", "10", "y", "10",
-                   "width", "20", "height", "30",
-                   "fill", "blue",
-                   "click", "a:b:c:e");
-
-    tuple z = timm("kind", "text",
-                   "x", "10", "y", "10",
-                   "text", "figgy");
-        
-    tuple c = timm("a", a, "b", z);
-    format_json(b, timm("children",c));
-    rprintf ("bee; %b\n", b);
-    apply(out, b);
-}
-
 
 // per request heap
 closure_function(4, 1, void, each_http_request,
@@ -130,7 +157,6 @@ closure_function(4, 1, void, each_http_request,
             s->out = websocket_send_upgrade(h, v, out,
                                             &in,
                                             closure(h, each_ws, s));
-            init_ws_client(s->out);
             *bound(director_bh) = in;
         } else {
             // root - serve up js app
