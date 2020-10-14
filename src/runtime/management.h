@@ -11,3 +11,4 @@ void set_management_simple(void *obj, tuple_generator t);
     
 void init_management(heap h);
 
+void wrap_function(heap h, tuple_get g);

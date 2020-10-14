@@ -67,7 +67,6 @@ void print_tuple(buffer b, tuple z)
         if (tagof(v) == tag_tuple) {
             print_tuple(b, v);
         } else {
-            rprintf("%b %k\n", v, v);
             bprintf(b, "%b", v);
         }
         sub = true;
@@ -196,6 +195,17 @@ static void format_kind(buffer dest, struct formatter_state *s, vlist *a)
     bprintf(dest, "%s", tag_name);
 }
 
+static void format_keysof(buffer dest, struct formatter_state *s, vlist *a)
+{
+    boolean first = true;
+    value t = varg(*a, tuple);    
+    table_foreach(t, n, _) {
+        if (!first) buffer_write_byte(dest, ' ');
+        bprintf(dest, "%v", n);
+        first = false;
+    }
+}
+
 void init_extra_prints()
 {
     register_format('t', format_tuple, 0);
@@ -206,4 +216,5 @@ void init_extra_prints()
     register_format('C', format_csum_buffer, 0);
     register_format('F', format_closure, 0);
     register_format('k', format_kind, 0);    // realy type/tag but 't' is pretty booked
+    register_format('K', format_keysof, 0);    
 }

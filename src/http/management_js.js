@@ -93,7 +93,7 @@ function getUpstream(path) {
 }
 
 function putBatch(statements) {
-    send({"write":statements})
+    send(statements)
 }
 
 function websocket(url) {  
@@ -101,7 +101,8 @@ function websocket(url) {
 	socket = new WebSocket(url)
     socket.onopen = function(evt){
         clear()
-        getUpstream("")
+        send({"generate":{}})
+        // getUpstream("")
     }
     socket.onmessage = function(event){
             var msg = JSON.parse(event.data);

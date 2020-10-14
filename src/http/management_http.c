@@ -9,6 +9,7 @@ static buffer management_js;
 typedef struct session {
     tuple root;
     buffer_handler out;
+    heap h;
 } *session;
 
 // move to runtime
@@ -30,6 +31,7 @@ void subkeys(value m, binding_handler e)
 // to all the contained trees
 
 // copying - really consider interning them all
+// this isn't returning a tuple path at all..
 tuple path_append(tuple n, value e) {
     if (!table_elements(n)) {
         return e;
@@ -51,7 +53,6 @@ closure_function(3, 2, void, add_node,
     u64 *offset = bound(offset);
     string y = allocate_string();
     bprintf(y, "%d", *offset*15 + 10);
-    rprintf("z %p %d %v\n", name, tagof(name), y);
     
     //for the moment, we cant trust tree producers to use buffers with
     // the string tag. and symbols come in here? make this stuff work in
@@ -64,9 +65,15 @@ closure_function(3, 2, void, add_node,
     // old one and instantiating the new one?
     // we should style directories and leaves differently
     // tuple_union(delete, newpanel)
+
+    // sad
+    tuple d = allocate_tuple();
+    table_set(d, intern(ns), allocate_tuple());
+    tuple pa = path_append(bound(path), d);
     
+    rprintf("path append %v\n", pa);
     tuple action = timm("ui",timm("panel",allocate_tuple()),
-                        "generate", path_append(bound(path), ns));
+                        "generate", pa);
     buffer a = aprintf(transient, "z %v\n", action);
     buffer_write_byte(a, 0);
     console(a->contents);
@@ -85,13 +92,13 @@ closure_function(3, 2, void, add_node,
 // there is a vector_resolve path in tfs
 tuple tuple_resolve_path(tuple where, tuple path)
 {
-    if (!table_elements(path)) 
-        return where;
+    if (!table_elements(path)) return where;
 
     table_foreach(path, k, v) {
         tuple x = table_find(where, k);
-        if (!x) return x;
-        return resolve_path(x, v);
+        if (x) {
+            return tuple_resolve_path(x, v);
+        }
     }
     return 0;
 }
@@ -106,19 +113,50 @@ tuple generate_panel(table root, tuple path)
     
     u64 *offset = allocate(transient, sizeof(u64));
     *offset = 0;
-    subkeys(tuple_resolve_path(root, path),
-            closure(transient, add_node, path, panel_children, offset));
-    rprintf("%t\n", dest);
+    tuple node = tuple_resolve_path(root, path);
+    rprintf("resolved node: %K %p %k\n", node, node, node);
+    if (node) {
+        subkeys(tuple_resolve_path(root, path),
+                closure(transient, add_node, path, panel_children, offset));
+        rprintf("%t\n", dest);
+    } else {
+        rprintf("bad path: %v\n", path);
+    }
     return dest;
 }
 
-closure_function(1, 1, status, each_ws, session, s, buffer, b) {
+// this is a functional_tuple, but we only care about get here
+// maybe not the best implementation strategy for functional maps
+// in tuplespace
+
+closure_function(1, 1, value, get_generate_panel, tuple, root, value, v) 
+{
+    // validate tagof(v) = tuple? 
+    return generate_panel(bound(root), v);
+}
+
+closure_function(1, 1, void, ui_input, session, s, value, v)
+{
+    rprintf("ui input: %v\n", v);
+    // this really is the same tree, so fix  - maybe this is a subscription!
+    table_foreach(v, k, v2) {
+        if (k == sym(generate)) {
+            buffer out = allocate_buffer(transient, 100);
+            rprintf("ui generate: %v\n", v2);            
+            format_json(out, generate_panel(bound(s)->root, v2));
+            apply(bound(s)->out, out);
+        }
+    }
+}
+                 
+closure_function(1, 1, status, each_ws, session, s, buffer, b)
+{
     session s = bound(s);
     if (b) {
         rprintf("from websocket %b\n", b);
-        buffer out = allocate_buffer(transient, 100);
-        format_json(out, generate_panel(bound(s)->root, allocate_tuple()));
-        apply(s->out, out);
+        value_handler each_value = closure(s->h, ui_input, s);
+        // dont need to allocate this closure all the time
+        apply(parse_json(s->h, each_value), b);
     } else {
         rprintf("websocket closed\n");
     }
@@ -152,6 +190,7 @@ closure_function(4, 1, void, each_http_request,
         // xxx - the browser signatures differ slightly here
         if (up && !buffer_compare(up, symbol_string(sym("websocket")))) {
             session s = allocate(h, sizeof(struct session));
+            s->h = h;
             buffer_handler in;
             s->root = bound(root);
             s->out = websocket_send_upgrade(h, v, out,
@@ -210,6 +249,8 @@ void sha1(buffer, buffer);
 void init_management_http(heap h, tuple root) {
     string r = get(root, sym(management_http));
     u64 port;
+
+    table_set(root, sym(generate), closure(h, get_generate_panel, root));
         
     if (r && parse_int(r, 10, &port)) {
         // xxx - check to make sure there weren't high order bits set
