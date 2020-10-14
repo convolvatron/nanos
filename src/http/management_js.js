@@ -28,46 +28,53 @@ function softNode(parent, name, tree) {
 }
 
 // consider a shadow tree - I guess I'm just worried about namespace issues?
-function set(dom, tree) {
-    var obj = dom
-
-    if (tree == null) {
+function set(obj, v) {
+    if (v == null) {
         obj.remove()
         return
     }
-    
-    if ("children" in tree) {
-        for (i in tree.children) {
-           v = tree.children[i]
-           n = softNode(dom, i, v) // right?
-           set(n, v)
-        }
-    }
 
-    for (var key in tree) {
-        var k = tree[key]
+    console.log(v)
+    for (var key in v) {
+        var val = v[key]
 	switch(key) {
         case 'children':
+            for (var k in val) {
+                set(softNode(obj, k, val[k]), val[k])
+            }
         case 'kind':
             break
 	case 'click':
             // if k is empty then remove listener
             if (!("click" in obj)) {
                    rebind_k = function(x) {
-                      x.addEventListener("click",
-                                        function (evt) {putBatch(x.click)})
+                    // val?
+                       x.addEventListener("click",
+                                          function (evt) {putBatch(x.click)})
                    }
-                   rebind_k(obj)
+                rebind_k(obj)
             } 
-            obj.click = k
+            obj.click = val
             break
 	case 'text':
-	    var textNode = document.createTextNode(tree.text)
+	    var textNode = document.createTextNode(val)
 	    obj.appendChild(textNode);
 	    break;
 	default: 
-	    obj.setAttributeNS(null,key,k)
+	    obj.setAttributeNS(null,key,val)
 	}
+    }
+}
+
+// why isn't this a path walk? we should be able to set all the children, or
+// some detail of an existing child
+function path_set(dom, n, v) {
+    if (n["0"] == "children") {
+        var name = n["1"]
+
+        console.log("painting", name)
+        obj = softNode(dom, name, v) // right? - v is being read to determine kind
+        set(obj, v)
     }
 }
 
@@ -101,13 +108,13 @@ function websocket(url) {
 	socket = new WebSocket(url)
     socket.onopen = function(evt){
         clear()
-        send({"generate":{}})
+        send({"write":{"name":{"0":"generate"}, "value":{}}})
         // getUpstream("")
     }
     socket.onmessage = function(event){
-            var msg = JSON.parse(event.data);
-          set(svg, msg)
-        }
+        var msg = JSON.parse(event.data);
+        path_set(svg, msg.write.name, msg.write.value)
+    }
     socket.onclose = 
             function(evt){
 		svg.setAttributeNS(null, "fill", "grey") 

@@ -16,18 +16,28 @@ static inline vector vector_from_tuple(heap h, tuple n)
     return r;
 }
 
-// destructive
+static inline void tuple_vector_push(tuple t, value v)
+{
+    table_set(t, intern_u64(table_elements(t)), v);
+}
+
+
+static inline boolean is_vector_tuple(tuple x)
+{
+    int i = 0;
+    for (; (x = table_find(x, intern_u64(i))); i++);
+    return table_elements(x) == i;
+}
+
 static inline tuple tuple_from_vector(vector v)
 {
-    void *p;
-    int i = 0;
     tuple t = allocate_tuple();
     if (t == INVALID_ADDRESS)
         return t;
 
     // reversal?
-    while ((p = vector_pop(v))) 
-        table_set(t, intern_u64(i++), p);
+    for (int i = 0 ; i< vector_length(v); i++) 
+        table_set(t, intern_u64(i), vector_get(v, i));
 
     return t;
 }

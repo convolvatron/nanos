@@ -42,9 +42,9 @@ tuple path_append(tuple n, value e) {
     return t;        
 }
 
+
 closure_function(3, 2, void, add_node,
-                 tuple, path, // we're going with nested tuple paths today
-                              // instead of vector or path string
+                 vector, path,
                  tuple, dest,
                  u64 *, offset,
                  value, name,
@@ -66,63 +66,56 @@ closure_function(3, 2, void, add_node,
     // we should style directories and leaves differently
     // tuple_union(delete, newpanel)
 
-    // sad
-    tuple d = allocate_tuple();
-    table_set(d, intern(ns), allocate_tuple());
-    tuple pa = path_append(bound(path), d);
+    // read or write?
+    tuple p = tuple_from_vector(bound(path));
+    tuple_vector_push(p, ns);
+    tuple action = timm("name", "generate", "value", p);
+    tuple action_write = timm("write", action);
     
-    rprintf("path append %v\n", pa);
-    tuple action = timm("ui",timm("panel",allocate_tuple()),
-                        "generate", pa);
-    buffer a = aprintf(transient, "z %v\n", action);
-    buffer_write_byte(a, 0);
-    console(a->contents);
-    
-    tuple z = timm("kind", "text",
-                   "x", "10", "y", y, "text", ns, "click", action);
+    tuple z = timm("kind", "text", "x", "10", "y", y, "text", ns, "click", action_write);
 
+    // why aren't we just using the known-to-be-unique name as the tag?
     buffer n = little_stack_buffer(20);
     buffer_write_byte(n, *offset + 'a');
-    table_set(bound(dest), intern(n), z);
+    table_set(bound(dest), intern(n), z); 
     
     // layout?
     *offset = *offset +1;
 }
 
-// there is a vector_resolve path in tfs
-tuple tuple_resolve_path(tuple where, tuple path)
+// variadic set if this lives
+value json_write(value n, value v)
 {
-    if (!table_elements(path)) return where;
-
-    table_foreach(path, k, v) {
-        tuple x = table_find(where, k);
-        if (x) {
-            return tuple_resolve_path(x, v);
-        }
-    }
-    return 0;
+    tuple body = timm("name", n, "value", v);
+    return timm("write", body);
 }
 
-tuple generate_panel(table root, tuple path)
+//    tuple children = timm("panel", panel);
+//    tuple dest = timm("children", children);
+
+tuple generate_panel(heap h, table root, vector path)
 {
-    // pacc anyone?
+    // decla-pacc anyone?
     tuple panel_children = allocate_tuple();        
     tuple panel = timm("kind", "g", "children", panel_children);
-    tuple children = timm("panel", panel);
-    tuple dest = timm("children", children);
     
     u64 *offset = allocate(transient, sizeof(u64));
     *offset = 0;
-    tuple node = tuple_resolve_path(root, path);
-    rprintf("resolved node: %K %p %k\n", node, node, node);
+    rprintf("resolve: %v\n", path);
+    tuple node = resolve_path(root, path);
+    rprintf("resolved node: [%K] %p %k\n", node, node, node);
     if (node) {
-        subkeys(tuple_resolve_path(root, path),
-                closure(transient, add_node, path, panel_children, offset));
-        rprintf("%t\n", dest);
+        subkeys(node, closure(h, add_node, path, panel_children, offset));
     } else {
+        // do we have prints for vector strings? integrate vector - function
+        // dispatch needs to be disjoint from lifetime..right? 
         rprintf("bad path: %v\n", path);
     }
-    return dest;
+    //    tuple pt = tuple_from_vector(build_vector(h, sym(children), sym(panel)));
+    tuple pt = timm("0", "children", "1", "panel");
+    rprintf ("path %v\n", pt);
+    // absolute?
+    return json_write(pt, panel);
 }
 
 // this is a functional_tuple, but we only care about get here
@@ -131,20 +124,33 @@ tuple generate_panel(table root, tuple path)
 
 closure_function(1, 1, value, get_generate_panel, tuple, root, value, v) 
 {
-    // validate tagof(v) = tuple? 
-    return generate_panel(bound(root), v);
+    // validate tagof(v) = tuple?
+    // really transient?
+    return generate_panel(transient, bound(root), v);
 }
 
 closure_function(1, 1, void, ui_input, session, s, value, v)
 {
     rprintf("ui input: %v\n", v);
-    // this really is the same tree, so fix  - maybe this is a subscription!
-    table_foreach(v, k, v2) {
-        if (k == sym(generate)) {
-            buffer out = allocate_buffer(transient, 100);
-            rprintf("ui generate: %v\n", v2);            
-            format_json(out, generate_panel(bound(s)->root, v2));
-            apply(bound(s)->out, out);
+    // this is a subscription..merge generate in tree properly once
+    // we are a little more settled
+    table_foreach(v, k1, v3) {
+        if (k1 == sym(write)) {
+            value wn = table_find(v3, sym(name));
+            value wv = table_find(v3, sym(value));
+            rprintf("zggo: %v %v %k\n", wn, wv, table_find(wn, sym(0)));            
+
+            // shouldn't have interns in the parse path .. fix the
+            // lifetime issues
+            if (intern(table_find(wn, sym(0))) == sym(generate)) {
+                buffer out = allocate_buffer(transient, 100);
+                rprintf("ui generate: %v\n", wv);
+                tuple k = generate_panel(transient, bound(s)->root,
+                                         vector_from_tuple(transient, wv));
+                rprintf("out: %v", k);
+                format_json(out, k);
+                apply(bound(s)->out, out);
+            }
         }
     }
 }
