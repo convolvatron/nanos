@@ -85,7 +85,7 @@ static void add_value_entry(tuple dest,
         value = "<unknown type>";
     }
     
-    tuple vt = timm("kind", "text", "x", "90", "y", y, "text", value);
+    tuple vt = timm("kind", "text", "x", "140", "y", y, "text", value);
     // this raises namespace conflicts
     table_set(dest, intern(aprintf(transient, "%v-value", name)), vt); 
     
@@ -167,8 +167,26 @@ closure_function(1, 1, value, get_generate_panel, tuple, root, value, v)
     return generate_panel(transient, bound(root), v);
 }
 
+// this is is really just so wrong. the ui should be
+// registering queries against state that it cares
+// about ... those subscriptions will trickle down the
+// tree so even changes at the leaves get pushed up
+// in a demand-driven fashion
+static timer update_timer = 0;
+
+closure_function(2,1, void, panel_update_timer, session, s, vector, path, unsigned long long, lateness)
+{
+    buffer out = allocate_buffer(transient, 100);
+    tuple k = generate_panel(transient, bound(s)->root, bound(path));
+    format_json(out, k);
+    apply(bound(s)->out, out);
+}
+
+extern timerheap runloop_timers;
+
 closure_function(1, 1, void, ui_input, session, s, value, v)
 {
+    session s = bound(s);
     // this is a subscription..merge generate in tree properly once
     // we are a little more settled
     table_foreach(v, k1, v3) {
@@ -180,10 +198,21 @@ closure_function(1, 1, void, ui_input, session, s, value, v)
             // lifetime issues
             if (intern(table_find(wn, sym(0))) == sym(generate)) {
                 buffer out = allocate_buffer(transient, 100);
-                tuple k = generate_panel(transient, bound(s)->root,
-                                         vector_from_tuple(transient, wv));
+                vector vpath = vector_from_tuple(transient, wv);
+                tuple k = generate_panel(transient, s->root, vpath);
+
+                // wrong
+                if ((table_elements(wv) == 2) && (buffer_compare_with_cstring(table_find(wv, intern_u64(0)),"interrupts"))) {
+                    update_timer = register_timer(runloop_timers, CLOCK_ID_MONOTONIC, 0, true, milliseconds(300),
+                                                  closure(s->h, panel_update_timer, s, vpath));
+                } else {
+                    // cancel update timer...racy as well
+                    if (update_timer)
+                        update_timer->disabled = true;
+                }
+
                 format_json(out, k);
-                apply(bound(s)->out, out);
+                apply(s->out, out);
             }
         }
     }
