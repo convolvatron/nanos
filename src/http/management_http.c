@@ -69,7 +69,8 @@ closure_function(3, 2, void, add_node,
     // read or write?
     tuple p = tuple_from_vector(bound(path));
     tuple_vector_push(p, ns);
-    tuple action = timm("name", "generate", "value", p);
+    tuple zero_g = timm("0", "generate");
+    tuple action = timm("name", zero_g, "value", p);
     tuple action_write = timm("write", action);
     
     tuple z = timm("kind", "text", "x", "10", "y", y, "text", ns, "click", action_write);
@@ -98,23 +99,23 @@ tuple generate_panel(heap h, table root, vector path)
     // decla-pacc anyone?
     tuple panel_children = allocate_tuple();        
     tuple panel = timm("kind", "g", "children", panel_children);
+
+    // sad
+    value i;
+    tuple node = root;
+    vector_foreach(path, i) {
+        if (!(node = table_find(root, intern(i)))) {
+            rprintf("bad path: %v\n", path);
+        }
+    }
     
     u64 *offset = allocate(transient, sizeof(u64));
     *offset = 0;
-    rprintf("resolve: %v\n", path);
-    tuple node = resolve_path(root, path);
-    rprintf("resolved node: [%K] %p %k\n", node, node, node);
-    if (node) {
-        subkeys(node, closure(h, add_node, path, panel_children, offset));
-    } else {
-        // do we have prints for vector strings? integrate vector - function
-        // dispatch needs to be disjoint from lifetime..right? 
-        rprintf("bad path: %v\n", path);
-    }
+    rprintf("resolved node: [%K] %p %k\n", node, node, node);        
+    subkeys(node, closure(h, add_node, path, panel_children, offset));
     //    tuple pt = tuple_from_vector(build_vector(h, sym(children), sym(panel)));
-    tuple pt = timm("0", "children", "1", "panel");
-    rprintf ("path %v\n", pt);
     // absolute?
+    tuple pt = timm("0", "children", "1", "panel");
     return json_write(pt, panel);
 }
 
@@ -136,8 +137,10 @@ closure_function(1, 1, void, ui_input, session, s, value, v)
     // we are a little more settled
     table_foreach(v, k1, v3) {
         if (k1 == sym(write)) {
+            rprintf("tag! %v\n", v3);
             value wn = table_find(v3, sym(name));
             value wv = table_find(v3, sym(value));
+            rprintf("tag! %v %v %v\n", v3, wn ,wv);            
             rprintf("zggo: %v %v %k\n", wn, wv, table_find(wn, sym(0)));            
 
             // shouldn't have interns in the parse path .. fix the

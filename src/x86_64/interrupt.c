@@ -4,7 +4,7 @@
 #include <region.h>
 #include <apic.h>
 
-//#define INT_DEBUG
+#define INT_DEBUG
 #ifdef INT_DEBUG
 #define int_debug(x, ...) do {log_printf("  INT", x, ##__VA_ARGS__);} while(0)
 #else
@@ -282,7 +282,7 @@ void common_handler()
             lapic_eoi();
     } else {
         /* fault handlers likely act on cpu state, so don't change it */
-        fault_handler fh = pointer_from_u64(f[FRAME_FAULT_HANDLER]);
+        fault_handler fh = 0; // pointer_from_u64(f[FRAME_FAULT_HANDLER]);
         if (fh) {
             context retframe = apply(fh, f);
             if (retframe)
