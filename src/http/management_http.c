@@ -111,7 +111,8 @@ closure_function(3, 2, void, add_node,
     tuple p = tuple_from_vector(bound(path));
     tuple_vector_push(p, ns);
 
-    if (tagof(v) == tag_tuple) {
+    // function tuple isn't necessarily a tuple? can it be a leaf?
+    if ((tagof(v) == tag_tuple) || (tagof(v) == tag_function_tuple)) {
         add_directory_entry(p, bound(dest), bound(offset), ns);
     } else {
         add_value_entry(bound(dest), bound(offset), ns, v);

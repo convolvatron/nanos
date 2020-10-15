@@ -146,6 +146,8 @@ closure_function(1, 3, void, each_test_request,
 }
 #endif
 
+void interrupt_management(heap h, tuple root);
+
 closure_function(3, 0, void, startup,
                  kernel_heaps, kh, tuple, root, filesystem, fs)
 {
@@ -153,6 +155,7 @@ closure_function(3, 0, void, startup,
     tuple root = bound(root);
     filesystem fs = bound(fs);
 
+    interrupt_management(heap_general(kh), root);
     /* kernel process is used as a handle for unix */
     process kp = init_unix(kh, root, fs);
     if (kp == INVALID_ADDRESS) {

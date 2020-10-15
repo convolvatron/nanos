@@ -20,7 +20,11 @@ void set_management_simple(void *obj, tuple_generator t)
     
 }
 
-void wrap_function(heap h, tuple_get g) {
+function_tuple wrap_function(tuple_get g)
+{
+    function_tuple f = allocate_zero(mheap, sizeof(struct function_tuple));
+    f->g = g;
+    return f;
     
 }
 

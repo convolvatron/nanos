@@ -120,6 +120,7 @@ closure_function(4, 2, void, fsstarted,
 
     heap h = bound(h);
     u8 *mbr = bound(mbr);
+    // root should live above any particular fileystem (?)
     tuple root = filesystem_getroot(fs);
     storage_set_root_fs(fs);
     tuple mounts = table_find(root, sym(mounts));

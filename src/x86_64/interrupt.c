@@ -4,7 +4,7 @@
 #include <region.h>
 #include <apic.h>
 
-//#define INT_DEBUG
+#define INT_DEBUG
 #ifdef INT_DEBUG
 #define int_debug(x, ...) do {log_printf("  INT", x, ##__VA_ARGS__);} while(0)
 #else
@@ -75,6 +75,9 @@ static char* textoreg[] = {
     "gsbase", //23
     "vector", //24
 };
+
+// per-cpu actually
+static u64 counts[MAX_INTERRUPT_VECTORS];
 
 static inline char *register_name(u64 s)
 {
@@ -234,6 +237,7 @@ void common_handler()
         goto exit_fault;
     }
 
+    counts[i]++;
     // if we were idle, we are no longer
     atomic_clear_bit(&idle_cpu_mask, ci->id);
 
@@ -327,6 +331,29 @@ void deallocate_interrupt(u64 irq)
     deallocate_u64(interrupt_vector_heap, irq, 1);
 }
 
+
+// this is really more of the simple variety?
+// also - stuff like this should be styled as a table not as a tree
+closure_function(0, 1,
+                 value, management_interrupt_table,
+                 value, v)
+{
+    tuple out = allocate_tuple();
+    for (int i =0; i< n_interrupt_vectors; i++) {
+        if (handlers[i]) {
+            symbol name;
+            if (interrupt_names[i]) {
+                name = intern(aprintf(transient, "%s", interrupt_names[i]));
+            } else {
+                name = intern_u64(i);
+            }
+            table_set(out, name, timm("number", intern_u64(i),
+                                      "count", intern_u64(counts[i])));
+        }
+    }
+    return out;
+}
+
 void register_interrupt(int vector, thunk t, const char *name)
 {
     if (handlers[vector])
@@ -359,7 +386,12 @@ void set_ist(int cpu, int i, u64 sp)
     write_tss_u64(cpu, 0x24 + (i - 1) * 8, sp);
 }
 
-void init_interrupts(kernel_heaps kh)
+void interrupt_management(heap h, tuple root)
+{
+    table_set(root, sym(interrupts), wrap_function(closure(h, management_interrupt_table)));
+}
+
+void init_interrupts(kernel_heaps kh, tuple root)
 {
     heap general = heap_general(kh);
     cpuinfo ci = current_cpu();
@@ -370,7 +402,7 @@ void init_interrupts(kernel_heaps kh)
     interrupt_vector_heap = (heap)create_id_heap(general, general, INTERRUPT_VECTOR_START,
                                                  n_interrupt_vectors - INTERRUPT_VECTOR_START, 1);
     assert(interrupt_vector_heap != INVALID_ADDRESS);
-
+    
     /* Separate stack to keep exceptions in interrupt handlers from
        trashing the interrupt stack */
     set_ist(0, IST_EXCEPTION, u64_from_pointer(ci->exception_stack));
