@@ -335,10 +335,10 @@ void deallocate_interrupt(u64 irq)
 // this is really more of the simple variety?
 // also - stuff like this should be styled as a table not as a tree
 closure_function(0, 1,
-                 value, management_interrupt_table,
-                 value, v)
+                 void, management_interrupt_table,
+                 binding_handler, bh)
 {
-    tuple out = allocate_tuple();
+
     for (int i =0; i< n_interrupt_vectors; i++) {
         if (handlers[i]) {
             symbol name;
@@ -347,11 +347,14 @@ closure_function(0, 1,
             } else {
                 name = intern_u64(i);
             }
-            table_set(out, name, timm("number", intern_u64(i),
-                                      "count", intern_u64(counts[i])));
+
+            // have to break this out seperately for get
+            tuple v = timm("number", intern_u64(i),
+                           "count", intern_u64(counts[i]));
+            rprintf ("interrupt name: %v %k\n", name, name);
+            apply(bh, name, v);
         }
     }
-    return out;
 }
 
 void register_interrupt(int vector, thunk t, const char *name)
@@ -388,7 +391,7 @@ void set_ist(int cpu, int i, u64 sp)
 
 void interrupt_management(heap h, tuple root)
 {
-    table_set(root, sym(interrupts), wrap_function(closure(h, management_interrupt_table)));
+    table_set(root, sym(interrupts), wrap_function(0,0,closure(h, management_interrupt_table)));
 }
 
 void init_interrupts(kernel_heaps kh, tuple root)

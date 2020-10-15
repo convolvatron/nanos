@@ -176,7 +176,6 @@ closure_function(1, 1, void, ui_input, session, s, value, v)
     // we are a little more settled
     table_foreach(v, k1, v3) {
         if (k1 == sym(write)) {
-            rprintf("tag! %v\n", v3);
             value wn = table_find(v3, sym(name));
             value wv = table_find(v3, sym(value));
 
@@ -184,10 +183,8 @@ closure_function(1, 1, void, ui_input, session, s, value, v)
             // lifetime issues
             if (intern(table_find(wn, sym(0))) == sym(generate)) {
                 buffer out = allocate_buffer(transient, 100);
-                rprintf("ui generate: %v\n", wv);
                 tuple k = generate_panel(transient, bound(s)->root,
                                          vector_from_tuple(transient, wv));
-                rprintf("out: %v", k);
                 format_json(out, k);
                 apply(bound(s)->out, out);
             }

@@ -20,10 +20,12 @@ void set_management_simple(void *obj, tuple_generator t)
     
 }
 
-function_tuple wrap_function(tuple_get g)
+function_tuple wrap_function(tuple_get g, tuple_set s, tuple_iterate i)
 {
     function_tuple f = allocate_zero(mheap, sizeof(struct function_tuple));
     f->g = g;
+    f->s = s;
+    f->i = i;
     return f;
     
 }
