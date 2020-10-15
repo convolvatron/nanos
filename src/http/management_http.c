@@ -115,9 +115,15 @@ tuple generate_panel(heap h, table root, vector path)
     u64 *offset = allocate(transient, sizeof(u64));
     *offset = 0;
     rprintf("resolved node: [%K] %p %k\n", node, node, node);
-    string back = allocate_string();
-    bprintf(back, "back");
-    add_panel_entry(tuple_from_vector(path), panel_children, offset, back);
+    if (vector_length(path) > 0) {
+        tuple p = allocate_tuple();
+        for (int i = 0;i<(vector_length(path) - 1); i++)
+            tuple_vector_push(p, vector_get(path, i));
+        
+        string back = allocate_string();
+        bprintf(back, "back");
+        add_panel_entry(p, panel_children, offset, back);
+    }
     binding_handler an = closure(h, add_node, path, panel_children, offset);    
     subkeys(node, an);
 

@@ -21,6 +21,11 @@ static inline void tuple_vector_push(tuple t, value v)
     table_set(t, intern_u64(table_elements(t)), v);
 }
 
+static inline void tuple_vector_pop(tuple t, value v)
+{
+    table_set(t, intern_u64(table_elements(t)), v);
+}
+
 
 static inline boolean is_vector_tuple(tuple x)
 {

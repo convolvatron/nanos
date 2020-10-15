@@ -4,7 +4,7 @@
 #include <region.h>
 #include <apic.h>
 
-#define INT_DEBUG
+//#define INT_DEBUG
 #ifdef INT_DEBUG
 #define int_debug(x, ...) do {log_printf("  INT", x, ##__VA_ARGS__);} while(0)
 #else
