@@ -75,8 +75,6 @@ static void add_value_entry(tuple dest,
 {
     string y = allocate_string();
     bprintf(y, "%d", *offset*15 + 10);
-
-    rprintf("name value: %k %k\n", name, v);
         
     tuple nt = timm("kind", "text", "x", "10", "y", y, "text", name);
     table_set(dest, intern(name), nt);
@@ -132,7 +130,7 @@ tuple generate_panel(heap h, table root, vector path)
     value i;
     tuple node = root;
     vector_foreach(path, i) {
-        if (!(node = table_find(node, intern(i)))) {
+        if (!(node = get(node, intern(i)))) {
             rprintf("bad path: %v\n", path);
         }
     }
@@ -171,7 +169,6 @@ closure_function(1, 1, value, get_generate_panel, tuple, root, value, v)
 
 closure_function(1, 1, void, ui_input, session, s, value, v)
 {
-    rprintf("ui input: %v\n", v);
     // this is a subscription..merge generate in tree properly once
     // we are a little more settled
     table_foreach(v, k1, v3) {

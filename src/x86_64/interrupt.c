@@ -4,7 +4,7 @@
 #include <region.h>
 #include <apic.h>
 
-#define INT_DEBUG
+//#define INT_DEBUG
 #ifdef INT_DEBUG
 #define int_debug(x, ...) do {log_printf("  INT", x, ##__VA_ARGS__);} while(0)
 #else
@@ -332,6 +332,21 @@ void deallocate_interrupt(u64 irq)
 }
 
 
+closure_function(0, 1,
+                 value, management_interrupt_get,
+                 value, name)
+{
+    // please forgive, we're just trying to prop up a demo here
+    // reverse mapping
+    for (int i=0; i <MAX_INTERRUPT_VECTORS;i++) {
+        if (interrupt_names[i] && 
+            buffer_compare_with_cstring(symbol_string(name), interrupt_names[i]))
+            return timm("number", intern_u64(i),
+                        "count", intern_u64(counts[i]));
+    }
+    return 0;
+}
+
 // this is really more of the simple variety?
 // also - stuff like this should be styled as a table not as a tree
 closure_function(0, 1,
@@ -351,7 +366,6 @@ closure_function(0, 1,
             // have to break this out seperately for get
             tuple v = timm("number", intern_u64(i),
                            "count", intern_u64(counts[i]));
-            rprintf ("interrupt name: %v %k\n", name, name);
             apply(bh, name, v);
         }
     }
@@ -391,7 +405,9 @@ void set_ist(int cpu, int i, u64 sp)
 
 void interrupt_management(heap h, tuple root)
 {
-    table_set(root, sym(interrupts), wrap_function(0,0,closure(h, management_interrupt_table)));
+    table_set(root, sym(interrupts), wrap_function(closure(h, management_interrupt_get),
+                                                   0,
+                                                   closure(h, management_interrupt_table)));
 }
 
 void init_interrupts(kernel_heaps kh, tuple root)
