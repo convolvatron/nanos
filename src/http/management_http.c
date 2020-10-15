@@ -12,6 +12,14 @@ typedef struct session {
     heap h;
 } *session;
 
+
+// variadic set if this lives
+value json_write(value n, value v)
+{
+    tuple body = timm("name", n, "value", v);
+    return timm("write", body);
+}
+
 // move to runtime
 void subkeys(value m, binding_handler e)
 {
@@ -43,6 +51,29 @@ tuple path_append(tuple n, value e) {
 }
 
 
+static void add_panel_entry(tuple path,
+                            tuple dest,
+                            u64 * offset,
+                            value name)
+{
+    tuple zero_g = timm("0", "generate");
+    string y = allocate_string();
+    bprintf(y, "%d", *offset*15 + 10);
+    
+    tuple z = timm("kind", "text", "x", "10", "y", y, "text", name,
+                   "click", json_write(zero_g, path));
+
+    // why aren't we just using the known-to-be-unique name as the tag?
+    // it probably has to be escaped a bit
+    //    buffer n = little_stack_buffer(20);
+    //    buffer_write_byte(n, *offset + 'a');
+    rprintf("z %v\n", z);
+    table_set(dest, intern(name), z); 
+    
+    // layout?
+    *offset = *offset +1;
+}
+    
 closure_function(3, 2, void, add_node,
                  vector, path,
                  tuple, dest,
@@ -50,50 +81,22 @@ closure_function(3, 2, void, add_node,
                  value, name,
                  value, _)
 {
-    u64 *offset = bound(offset);
-    string y = allocate_string();
-    bprintf(y, "%d", *offset*15 + 10);
-    
     //for the moment, we cant trust tree producers to use buffers with
     // the string tag. and symbols come in here? make this stuff work in
     // general
     string ns = allocate_string();
     bprintf(ns, "%v", name);
 
-    // is this proper deletion?
-    // should we use unique names since there is a race on deleting the
-    // old one and instantiating the new one?
-    // we should style directories and leaves differently
-    // tuple_union(delete, newpanel)
-
     // read or write?
     tuple p = tuple_from_vector(bound(path));
     tuple_vector_push(p, ns);
-    tuple zero_g = timm("0", "generate");
-    tuple action = timm("name", zero_g, "value", p);
-    tuple action_write = timm("write", action);
-    
-    tuple z = timm("kind", "text", "x", "10", "y", y, "text", ns, "click", action_write);
 
-    // why aren't we just using the known-to-be-unique name as the tag?
-    buffer n = little_stack_buffer(20);
-    buffer_write_byte(n, *offset + 'a');
-    table_set(bound(dest), intern(n), z); 
-    
-    // layout?
-    *offset = *offset +1;
+    add_panel_entry(p, bound(dest), bound(offset), ns);
 }
 
-// variadic set if this lives
-value json_write(value n, value v)
-{
-    tuple body = timm("name", n, "value", v);
-    return timm("write", body);
-}
 
 //    tuple children = timm("panel", panel);
 //    tuple dest = timm("children", children);
-
 tuple generate_panel(heap h, table root, vector path)
 {
     // decla-pacc anyone?
@@ -104,16 +107,21 @@ tuple generate_panel(heap h, table root, vector path)
     value i;
     tuple node = root;
     vector_foreach(path, i) {
-        if (!(node = table_find(root, intern(i)))) {
+        if (!(node = table_find(node, intern(i)))) {
             rprintf("bad path: %v\n", path);
         }
     }
     
     u64 *offset = allocate(transient, sizeof(u64));
     *offset = 0;
-    rprintf("resolved node: [%K] %p %k\n", node, node, node);        
-    subkeys(node, closure(h, add_node, path, panel_children, offset));
-    //    tuple pt = tuple_from_vector(build_vector(h, sym(children), sym(panel)));
+    rprintf("resolved node: [%K] %p %k\n", node, node, node);
+    string back = allocate_string();
+    bprintf(back, "back");
+    add_panel_entry(tuple_from_vector(path), panel_children, offset, back);
+    binding_handler an = closure(h, add_node, path, panel_children, offset);    
+    subkeys(node, an);
+
+    //tuple pt = tuple_from_vector(build_vector(h, sym(children), sym(panel)));
     // absolute?
     tuple pt = timm("0", "children", "1", "panel");
     return json_write(pt, panel);

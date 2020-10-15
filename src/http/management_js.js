@@ -16,13 +16,16 @@ function boundingbox(obj) {
 function softNode(parent, name, tree) {
    // look up in dom..this is n^2...there is some kind of query something something
    for (let elem of parent.children) {
-      if (elem.name == name) {
-         return elem
+       if (elem.name == name) {
+           // we should be returning the old one, but to support overwrite
+           // we are deleting it..fix
+           elem.remove()
       }
    }
-   // see if we can defer the attach...or maybe it doesnt matter
-   obj = document.createElementNS(svgns, tree.kind);
-   obj.name = name
+    // see if we can defer the attach...or maybe it doesnt matter
+    obj = document.createElementNS(svgns, tree.kind);
+    obj.name = name
+
    parent.appendChild(obj);
    return obj
 }

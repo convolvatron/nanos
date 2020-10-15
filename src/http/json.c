@@ -9,21 +9,6 @@ typedef jparser (*completion)(json_parser);
     (((__c <= __end) && (__c >= __start))?                                \
      (__p->n = __p->n * __base + (__c - __start + __offset), true):false)
 
-
-#define sstring(__x) ({ \
-     static int init = 0;\
-     /* must mark immutable?                    */\
-     static struct buffer b;\
-     if (!init) {\
-      b.start = 0;\
-      b.end = sizeof(__x) -1;\
-      b.contents = __x;\
-      b.length = b.end;\
-      init = 1;\
-     }        \
-     &b;\
-    })
-
 void escape_json(buffer out, string current)
 {
     buffer_write_byte(out , '"');
