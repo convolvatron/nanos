@@ -51,7 +51,7 @@ tuple path_append(tuple n, value e) {
 }
 
 
-static void add_panel_entry(tuple path,
+static void add_directory_entry(tuple path,
                             tuple dest,
                             u64 * offset,
                             value name)
@@ -63,15 +63,31 @@ static void add_panel_entry(tuple path,
     tuple z = timm("kind", "text", "x", "10", "y", y, "text", name,
                    "click", json_write(zero_g, path));
 
-    // why aren't we just using the known-to-be-unique name as the tag?
-    // it probably has to be escaped a bit
-    //    buffer n = little_stack_buffer(20);
-    //    buffer_write_byte(n, *offset + 'a');
-    rprintf("z %v\n", z);
+    // probably has to be escaped a bit
     table_set(dest, intern(name), z); 
+    *offset = *offset +1;     // layout?
+}
+
+static void add_value_entry(tuple dest,
+                            u64 * offset,
+                            value name,
+                            value v)
+{
+    string y = allocate_string();
+    bprintf(y, "%d", *offset*15 + 10);
+
+    rprintf("name value: %K %K\n", name, v);
+        
+    tuple nt = timm("kind", "text", "x", "10", "y", y, "text", name);
+    table_set(dest, intern(name), nt);
+
+    // assuming its a string!
+    tuple vt = timm("kind", "text", "x", "70", "y", y, "text", v);
+    rprintf("name value: %K %K\n", name, v);
+    // this raises namespace conflicts
+    table_set(dest, intern(aprintf(transient, "%v-value", name)), vt); 
     
-    // layout?
-    *offset = *offset +1;
+    *offset = *offset +1;     // layout?
 }
     
 closure_function(3, 2, void, add_node,
@@ -79,7 +95,7 @@ closure_function(3, 2, void, add_node,
                  tuple, dest,
                  u64 *, offset,
                  value, name,
-                 value, _)
+                 value, v)
 {
     //for the moment, we cant trust tree producers to use buffers with
     // the string tag. and symbols come in here? make this stuff work in
@@ -91,7 +107,11 @@ closure_function(3, 2, void, add_node,
     tuple p = tuple_from_vector(bound(path));
     tuple_vector_push(p, ns);
 
-    add_panel_entry(p, bound(dest), bound(offset), ns);
+    if (tagof(v) == tag_tuple) {
+        add_directory_entry(p, bound(dest), bound(offset), ns);
+    } else {
+        add_value_entry(bound(dest), bound(offset), ns, v);
+    }
 }
 
 
@@ -114,7 +134,7 @@ tuple generate_panel(heap h, table root, vector path)
     
     u64 *offset = allocate(transient, sizeof(u64));
     *offset = 0;
-    rprintf("resolved node: [%K] %p %k\n", node, node, node);
+
     if (vector_length(path) > 0) {
         tuple p = allocate_tuple();
         for (int i = 0;i<(vector_length(path) - 1); i++)
@@ -122,7 +142,7 @@ tuple generate_panel(heap h, table root, vector path)
         
         string back = allocate_string();
         bprintf(back, "back");
-        add_panel_entry(p, panel_children, offset, back);
+        add_directory_entry(p, panel_children, offset, back);
     }
     binding_handler an = closure(h, add_node, path, panel_children, offset);    
     subkeys(node, an);
@@ -154,8 +174,6 @@ closure_function(1, 1, void, ui_input, session, s, value, v)
             rprintf("tag! %v\n", v3);
             value wn = table_find(v3, sym(name));
             value wv = table_find(v3, sym(value));
-            rprintf("tag! %v %v %v\n", v3, wn ,wv);            
-            rprintf("zggo: %v %v %k\n", wn, wv, table_find(wn, sym(0)));            
 
             // shouldn't have interns in the parse path .. fix the
             // lifetime issues

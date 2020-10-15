@@ -35,7 +35,7 @@ SRCS-kernel.img= \
 	$(SRCDIR)/net/direct.c \
 	$(SRCDIR)/net/net.c \
 	$(SRCDIR)/net/netsyscall.c \
-        $(RUNTIME)\
+	$(RUNTIME) \
 	$(SRCDIR)/tfs/tfs.c \
 	$(SRCDIR)/tfs/tlog.c \
 	$(SRCDIR)/unix/aio.c \

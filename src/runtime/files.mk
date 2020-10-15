@@ -23,4 +23,4 @@ RUNTIME=$(SRCDIR)/runtime/bitmap.c \
 	$(SRCDIR)/runtime/tuple.c \
 	$(SRCDIR)/runtime/tuple_parser.c \
 	$(SRCDIR)/runtime/string.c \
-	$(SRCDIR)/runtime/crypto/chacha.c 
+	$(SRCDIR)/runtime/crypto/chacha.c

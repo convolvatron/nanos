@@ -6,7 +6,7 @@ PROGRAMS=dump mkfs vdsogen
 SRCS-dump= \
 	$(CURDIR)/dump.c \
 	$(SRCDIR)/kernel/pagecache.c \
-	$(RUNTIME)\
+	$(RUNTIME) \
 	$(SRCDIR)/tfs/tfs.c \
 	$(SRCDIR)/tfs/tlog.c \
 	$(SRCDIR)/unix_process/unix_process_runtime.c
@@ -14,7 +14,7 @@ SRCS-dump= \
 SRCS-mkfs= \
 	$(SRCDIR)/kernel/pagecache.c \
 	$(CURDIR)/mkfs.c \
-	$(RUNTIME)\
+	$(RUNTIME) \
 	$(SRCDIR)/tfs/tfs.c \
 	$(SRCDIR)/tfs/tlog.c \
 	$(SRCDIR)/unix_process/unix_process_runtime.c

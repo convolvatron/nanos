@@ -156,7 +156,10 @@ SRCS-signal= \
 	$(CURDIR)/signal.c \
 	$(SRCDIR)/unix_process/unix_process_runtime.c \
 	$(RUNTIME)
+<<<<<<< HEAD
 
+=======
+>>>>>>> 5432b8216dd3e9273858aaf85e533e7fb12dd202
 LDFLAGS-signal=		-static
 LIBS-signal=		-lm -lpthread
 
