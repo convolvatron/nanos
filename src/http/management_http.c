@@ -76,14 +76,18 @@ static void add_value_entry(tuple dest,
     string y = allocate_string();
     bprintf(y, "%d", *offset*15 + 10);
 
-    rprintf("name value: %K %K\n", name, v);
+    rprintf("name value: %k %k\n", name, v);
         
     tuple nt = timm("kind", "text", "x", "10", "y", y, "text", name);
     table_set(dest, intern(name), nt);
 
     // assuming its a string!
-    tuple vt = timm("kind", "text", "x", "70", "y", y, "text", v);
-    rprintf("name value: %K %K\n", name, v);
+    void *value  =v;
+    if (tagof(value) == tag_unknown) {
+        value = "<unknown type>";
+    }
+    
+    tuple vt = timm("kind", "text", "x", "90", "y", y, "text", value);
     // this raises namespace conflicts
     table_set(dest, intern(aprintf(transient, "%v-value", name)), vt); 
     
