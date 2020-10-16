@@ -287,7 +287,6 @@ void common_handler()
     } else {
         /* fault handlers likely act on cpu state, so don't change it */
         fault_handler fh = pointer_from_u64(f[FRAME_FAULT_HANDLER]);
-        fh = 0;
         if (fh) {
             context retframe = apply(fh, f);
             if (retframe)
