@@ -37,7 +37,6 @@ function set(obj, v) {
         return
     }
 
-    console.log(v)
     for (var key in v) {
         var val = v[key]
 	switch(key) {
@@ -75,7 +74,6 @@ function path_set(dom, n, v) {
     if (n["0"] == "children") {
         var name = n["1"]
 
-        console.log("painting", name)
         obj = softNode(dom, name, v) // right? - v is being read to determine kind
         set(obj, v)
     }
