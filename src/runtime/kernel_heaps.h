@@ -1,3 +1,5 @@
+// shouldn't this be in src/kernel?
+
 /* A repository of heaps used by the kernel
 
    Though the temptation is to retrieve these heaps from tuple space,

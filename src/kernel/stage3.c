@@ -164,6 +164,8 @@ closure_function(3, 0, void, startup,
     heap general = heap_general(kh);
     buffer_handler pg = closure(general, read_program_complete, general, kp, root);
 
+    table_set(root, sym(physical), id_heap_management(general, kh->physical));
+
     if (table_find(root, sym(telnet))) {
         listen_port(general, 9090, closure(general, each_telnet_connection, general));
         rprintf("Debug telnet server started on port 9090\n");

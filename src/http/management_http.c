@@ -2,8 +2,8 @@
 #include <net.h>
 #include <http.h>
 
-extern  char **_binary_management_js_js_start;
-extern  u64 _binary_management_js_js_size;
+extern char **_binary_management_js_js_start;
+extern u64 _binary_management_js_js_size;
 static buffer management_js;
 
 typedef struct session {
@@ -62,7 +62,6 @@ static void add_directory_entry(tuple path,
     
     tuple z = timm("kind", "text", "x", "10", "y", y, "text", name,
                    "click", json_write(zero_g, path));
-
     // probably has to be escaped a bit
     table_set(dest, intern(name), z); 
     *offset = *offset +1;     // layout?
@@ -82,13 +81,18 @@ static void add_value_entry(tuple dest,
     // assuming its a string!
     void *value  =v;
     if (tagof(value) == tag_unknown) {
-        value = "<unknown type>";
+        if (value == ((void *)true)) {
+            value = sstring("true");
+        } else {
+            value =  "<unknown type>";
+        }     
     }
-    
+
     tuple vt = timm("kind", "text", "x", "140", "y", y, "text", value);
     // this raises namespace conflicts
-    table_set(dest, intern(aprintf(transient, "%v-value", name)), vt); 
-    
+    table_set(dest, intern(aprintf(transient, "%v-value", name)), vt);
+    // add subscription tracking
+    //    table_set(subs, intern(aprintf(transient, "subscription", path, name))",
     *offset = *offset +1;     // layout?
 }
     
@@ -99,17 +103,22 @@ closure_function(3, 2, void, add_node,
                  value, name,
                  value, v)
 {
+    // should subscribe to 'path'
+    
     //for the moment, we cant trust tree producers to use buffers with
     // the string tag. and symbols come in here? make this stuff work in
     // general
     string ns = allocate_string();
     bprintf(ns, "%v", name);
 
+    
     // read or write?
     tuple p = tuple_from_vector(bound(path));
     tuple_vector_push(p, ns);
 
     // function tuple isn't necessarily a tuple? can it be a leaf?
+    // what if this changes?
+    
     if ((tagof(v) == tag_tuple) || (tagof(v) == tag_function_tuple)) {
         add_directory_entry(p, bound(dest), bound(offset), ns);
     } else {
@@ -120,12 +129,15 @@ closure_function(3, 2, void, add_node,
 
 //    tuple children = timm("panel", panel);
 //    tuple dest = timm("children", children);
+/* asdf subscription - we can generate the retraction - or just*/
+// blow it all away
+
 tuple generate_panel(heap h, table root, vector path)
 {
     // decla-pacc anyone?
     tuple panel_children = allocate_tuple();        
     tuple panel = timm("kind", "g", "children", panel_children);
-
+    
     // sad
     value i;
     tuple node = root;
@@ -147,13 +159,12 @@ tuple generate_panel(heap h, table root, vector path)
         bprintf(back, "back");
         add_directory_entry(p, panel_children, offset, back);
     }
-    binding_handler an = closure(h, add_node, path, panel_children, offset);    
+    binding_handler an = closure(h, add_node, path, panel_children, offset);
+    // incremental key-only
     subkeys(node, an);
-
+    return panel;
     //tuple pt = tuple_from_vector(build_vector(h, sym(children), sym(panel)));
     // absolute?
-    tuple pt = timm("0", "children", "1", "panel");
-    return json_write(pt, panel);
 }
 
 // this is a functional_tuple, but we only care about get here
@@ -167,26 +178,12 @@ closure_function(1, 1, value, get_generate_panel, tuple, root, value, v)
     return generate_panel(transient, bound(root), v);
 }
 
-// this is is really just so wrong. the ui should be
-// registering queries against state that it cares
-// about ... those subscriptions will trickle down the
-// tree so even changes at the leaves get pushed up
-// in a demand-driven fashion
-static timer update_timer = 0;
-
-closure_function(2,1, void, panel_update_timer, session, s, vector, path, unsigned long long, lateness)
-{
-    buffer out = allocate_buffer(transient, 100);
-    tuple k = generate_panel(transient, bound(s)->root, bound(path));
-    format_json(out, k);
-    apply(bound(s)->out, out);
-}
-
 extern timerheap runloop_timers;
 
 closure_function(1, 1, void, ui_input, session, s, value, v)
 {
     session s = bound(s);
+    rprintf("ui input %v\n", v);
     // this is a subscription..merge generate in tree properly once
     // we are a little more settled
     table_foreach(v, k1, v3) {
@@ -198,20 +195,12 @@ closure_function(1, 1, void, ui_input, session, s, value, v)
             // lifetime issues
             if (intern(table_find(wn, sym(0))) == sym(generate)) {
                 buffer out = allocate_buffer(transient, 100);
+                rprintf("wv: %v\n", wv);                
                 vector vpath = vector_from_tuple(transient, wv);
+                rprintf("vpath: %V\n", vpath);
                 tuple k = generate_panel(transient, s->root, vpath);
-
-                // wrong
-                if ((table_elements(wv) == 2) && (buffer_compare_with_cstring(table_find(wv, intern_u64(0)),"interrupts"))) {
-                    update_timer = register_timer(runloop_timers, CLOCK_ID_MONOTONIC, 0, true, milliseconds(300),
-                                                  closure(s->h, panel_update_timer, s, vpath));
-                } else {
-                    // cancel update timer...racy as well
-                    if (update_timer)
-                        update_timer->disabled = true;
-                }
-
-                format_json(out, k);
+                tuple w = json_write(timm("0", "ui", "1", "children", "2", "panel"), k);
+                format_json(out, w);
                 apply(s->out, out);
             }
         }

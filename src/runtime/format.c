@@ -126,7 +126,8 @@ void bprintf(buffer b, const char *fmt, ...)
 void rprintf(const char *format, ...)
 {
     /* What's a reasonable limit here? This needs to be reentrant. */
-    buffer b = little_stack_buffer(1024);
+    /* this should maybe be static and attempt to resize itself?*/
+    buffer b = little_stack_buffer(2048);
     vlist a;
     vstart(a, format);
     buffer f = alloca_wrap_buffer(format, runtime_strlen(format));

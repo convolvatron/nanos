@@ -71,7 +71,7 @@ function set(obj, v) {
 // why isn't this a path walk? we should be able to set all the children, or
 // some detail of an existing child
 function path_set(dom, n, v) {
-    if (n["0"] == "children") {
+    if ((n["0"] == "ui") && (n["1"] == "children")){
         var name = n["1"]
 
         obj = softNode(dom, name, v) // right? - v is being read to determine kind
@@ -113,7 +113,8 @@ function websocket(url) {
         // getUpstream("")
     }
     socket.onmessage = function(event){
-        var msg = JSON.parse(event.data);
+        var msg = JSON.parse(event.data)
+        // routing?
         path_set(svg, msg.write.name, msg.write.value)
     }
     socket.onclose = 

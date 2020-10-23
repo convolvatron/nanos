@@ -206,10 +206,25 @@ static void format_keysof(buffer dest, struct formatter_state *s, vlist *a)
     }
 }
 
+static void format_value_vector(buffer dest, struct formatter_state *s, vlist *a)
+{
+    vector v = varg(*a, vector);
+    bprintf(dest, "[");
+    value i;
+    boolean first = true;
+    vector_foreach(v, i){
+        if (!first) bprintf(dest, " ");
+        first = false;
+        bprintf(dest, "%v", i);
+    }
+    bprintf(dest, "]");    
+}
+
 void init_extra_prints()
 {
     register_format('t', format_tuple, 0);
     register_format('v', format_value, 0);
+    register_format('V', format_value_vector, 0);    
     register_format('X', format_hex_buffer, 0);
     register_format('T', format_timestamp, 0);
     register_format('R', format_range, 0);

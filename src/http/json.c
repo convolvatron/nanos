@@ -415,7 +415,7 @@ buffer_handler parse_json(heap h, value_handler j)
     p->indices = allocate_vector(p->h, 10);
     p->tags = allocate_vector(p->h, 10);
     p->out = j;
-    p->string_result = allocate_buffer(p->h, 20);
+    p->string_result = allocate_string();
     vector_push(p->completions, top_complete);
     p->p = json_top;
     return closure(p->h, json_input, p);

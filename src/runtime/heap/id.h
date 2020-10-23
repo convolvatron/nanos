@@ -34,3 +34,5 @@ static inline u64 id_heap_alloc_gte(id_heap h, bytes count, u64 min)
     id_heap_set_next(h, min);
     return id_heap_alloc_subrange(h, count, min, infinity);
 }
+
+value id_heap_management(heap h, id_heap id);
